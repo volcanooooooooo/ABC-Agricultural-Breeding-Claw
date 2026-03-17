@@ -3,7 +3,7 @@ import { ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEd
 import '@xyflow/react/dist/style.css'
 import { Card, Button, Modal, Form, Input, Select, Space, Table, message } from 'antd'
 import { PlusOutlined, SaveOutlined, SearchOutlined } from '@ant-design/icons'
-import { ontologyApi, Ontology, OntologyNode, OntologyEdge } from '../api/client'
+import { ontologyApi, Ontology, OntologyNode } from '../api/client'
 
 // Custom node component
 function CustomNode({ data }: { data: { label: string; nodeType: string } }) {
@@ -162,7 +162,10 @@ export default function OntologyPage() {
 
   // Filter nodes
   const filteredNodes = searchText
-    ? nodes.filter(node => (node.data as { label: string }).label.toLowerCase().includes(searchText.toLowerCase()))
+    ? nodes.filter(node => {
+        const label = (node.data as { label?: string }).label || ''
+        return label.toLowerCase().includes(searchText.toLowerCase())
+      })
     : nodes
 
   const columns = [
