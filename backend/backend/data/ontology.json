@@ -1,0 +1,272 @@
+{
+  "nodes": [
+    {
+      "id": "genotype_1",
+      "type": "genotype",
+      "name": "水稻基因型",
+      "properties": {
+        "category": "crop",
+        "description": "水稻的遗传构成"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "genotype_2",
+      "type": "genotype",
+      "name": "小麦基因型",
+      "properties": {
+        "category": "crop",
+        "description": "小麦的遗传构成"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "genotype_3",
+      "type": "genotype",
+      "name": "玉米基因型",
+      "properties": {
+        "category": "crop",
+        "description": "玉米的遗传构成"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "trait_1",
+      "type": "trait",
+      "name": "产量",
+      "properties": {
+        "category": "agronomic",
+        "description": "作物产量性状"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "trait_2",
+      "type": "trait",
+      "name": "品质",
+      "properties": {
+        "category": "agronomic",
+        "description": "作物品质性状"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "trait_3",
+      "type": "trait",
+      "name": "抗病性",
+      "properties": {
+        "category": "resistance",
+        "description": "抗病抗逆性状"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "trait_4",
+      "type": "trait",
+      "name": "生育期",
+      "properties": {
+        "category": "phenological",
+        "description": "生长周期性状"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "metabolome_1",
+      "type": "metabolome",
+      "name": "蛋白质含量",
+      "properties": {
+        "category": "nutritional",
+        "description": "营养成分含量"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "metabolome_2",
+      "type": "metabolome",
+      "name": "淀粉含量",
+      "properties": {
+        "category": "nutritional",
+        "description": "营养成分含量"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "metabolome_3",
+      "type": "metabolome",
+      "name": "维生素含量",
+      "properties": {
+        "category": "nutritional",
+        "description": "营养成分含量"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "env_1",
+      "type": "environment",
+      "name": "温度",
+      "properties": {
+        "category": "climate",
+        "description": "温度条件"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "env_2",
+      "type": "environment",
+      "name": "降雨量",
+      "properties": {
+        "category": "climate",
+        "description": "水分条件"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "env_3",
+      "type": "environment",
+      "name": "土壤类型",
+      "properties": {
+        "category": "soil",
+        "description": "土壤条件"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "method_1",
+      "type": "method",
+      "name": "杂交育种",
+      "properties": {
+        "category": "breeding",
+        "description": "传统育种方法"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "method_2",
+      "type": "method",
+      "name": "分子标记辅助选择",
+      "properties": {
+        "category": "breeding",
+        "description": "现代育种技术"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    },
+    {
+      "id": "method_3",
+      "type": "method",
+      "name": "基因编辑",
+      "properties": {
+        "category": "biotech",
+        "description": "生物技术方法"
+      },
+      "created_at": "2026-03-17T11:03:15.026691",
+      "updated_at": "2026-03-17T11:03:15.026691"
+    }
+  ],
+  "edges": [
+    {
+      "source": "genotype_1",
+      "target": "trait_1",
+      "relation": "决定"
+    },
+    {
+      "source": "genotype_1",
+      "target": "trait_2",
+      "relation": "影响"
+    },
+    {
+      "source": "genotype_1",
+      "target": "trait_3",
+      "relation": "决定"
+    },
+    {
+      "source": "genotype_2",
+      "target": "trait_1",
+      "relation": "决定"
+    },
+    {
+      "source": "genotype_2",
+      "target": "trait_2",
+      "relation": "影响"
+    },
+    {
+      "source": "genotype_3",
+      "target": "trait_1",
+      "relation": "决定"
+    },
+    {
+      "source": "genotype_3",
+      "target": "trait_4",
+      "relation": "影响"
+    },
+    {
+      "source": "trait_1",
+      "target": "metabolome_1",
+      "relation": "关联"
+    },
+    {
+      "source": "trait_2",
+      "target": "metabolome_2",
+      "relation": "影响"
+    },
+    {
+      "source": "trait_2",
+      "target": "metabolome_3",
+      "relation": "影响"
+    },
+    {
+      "source": "env_1",
+      "target": "trait_1",
+      "relation": "影响"
+    },
+    {
+      "source": "env_1",
+      "target": "trait_4",
+      "relation": "影响"
+    },
+    {
+      "source": "env_2",
+      "target": "trait_1",
+      "relation": "影响"
+    },
+    {
+      "source": "env_2",
+      "target": "trait_3",
+      "relation": "影响"
+    },
+    {
+      "source": "env_3",
+      "target": "trait_1",
+      "relation": "影响"
+    },
+    {
+      "source": "method_1",
+      "target": "genotype_1",
+      "relation": "应用于"
+    },
+    {
+      "source": "method_2",
+      "target": "genotype_1",
+      "relation": "应用于"
+    },
+    {
+      "source": "method_3",
+      "target": "genotype_1",
+      "relation": "应用于"
+    }
+  ]
+}
