@@ -1,7 +1,7 @@
 import { Card, Row, Col, Tag, Table, Button, Collapse } from 'antd'
 import { useState } from 'react'
 import { AnalysisResult, GeneInfo } from '../api/client'
-import { FeedbackPanel } from './FeedbackPanel'
+import { FeedbackWidget } from './FeedbackWidget'
 
 interface DualTrackResultCardProps {
   result: AnalysisResult
@@ -108,14 +108,7 @@ export function DualTrackResultCard({ result }: DualTrackResultCardProps) {
           </Row>
 
           {/* 反馈组件 */}
-          <Row gutter={16} style={{ marginTop: 16 }}>
-            <Col span={12}>
-              <FeedbackPanel analysisId={result.id} track="tool" />
-            </Col>
-            <Col span={12}>
-              <FeedbackPanel analysisId={result.id} track="llm" />
-            </Col>
-          </Row>
+          <FeedbackWidget analysisId={result.id} />
         </>
       )}
     </Card>
