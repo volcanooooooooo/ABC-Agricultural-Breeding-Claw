@@ -4,7 +4,7 @@ from typing import List
 from app.models.feedback import Feedback, FeedbackCreate
 from app.services.feedback_service import feedback_service
 
-router = APIRouter(prefix="/api/feedbacks", tags=["feedbacks"])
+router = APIRouter(tags=["feedbacks"])
 
 
 @router.get("", response_model=List[Feedback])

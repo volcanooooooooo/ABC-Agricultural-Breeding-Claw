@@ -17,7 +17,7 @@ class Dataset(BaseModel):
     description: Optional[str] = None
     data_type: str = "expression_matrix"
     file_path: str
-    file_size: Optional[int] = Field(None, ge=0, le=MAX_FILE_SIZE)
+    file_size: Optional[int] = Field(default=None, ge=0, le=MAX_FILE_SIZE)
     gene_count: int = Field(..., gt=0)
     sample_count: int = Field(..., ge=4)  # 至少4个样本
     groups: Dict[str, List[str]]

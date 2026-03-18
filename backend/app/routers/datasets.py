@@ -1,11 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
-from typing import List
+from typing import List, Optional
 
 from app.models.dataset import Dataset, DatasetUploadRequest
 from app.services.dataset_service import dataset_service
 
-router = APIRouter(prefix="/api/datasets", tags=["datasets"])
+router = APIRouter(tags=["datasets"])
 
 
 @router.get("", response_model=List[Dataset])
@@ -25,12 +25,12 @@ async def get_dataset(dataset_id: str):
 
 @router.post("/upload", response_model=Dataset)
 async def upload_dataset(
-    name: str,
-    description: str = None,
-    group_control: str = "control",
-    group_treatment: str = "treatment",
-    control_samples: str = "",
-    treatment_samples: str = "",
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    group_control: str = Form("control"),
+    group_treatment: str = Form("treatment"),
+    control_samples: str = Form(""),
+    treatment_samples: str = Form(""),
     file: UploadFile = File(...)
 ):
     """上传数据集"""

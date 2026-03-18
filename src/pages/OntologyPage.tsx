@@ -1,31 +1,43 @@
 import { useState, useCallback, useEffect } from 'react'
 import { ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState, Node, Edge, Connection, NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Card, Button, Modal, Form, Input, Select, Space, Table, message } from 'antd'
-import { PlusOutlined, SaveOutlined, SearchOutlined } from '@ant-design/icons'
+import { Card, Button, Modal, Form, Input, Select, Space, Table, message, Tag } from 'antd'
+import { PlusOutlined, SaveOutlined, SearchOutlined, ApiOutlined, ReloadOutlined } from '@ant-design/icons'
 import { ontologyApi, Ontology, OntologyNode } from '../api/client'
 
-// Custom node component
+// Custom node component - 温暖奶油风格
 function CustomNode({ data }: { data: { label: string; nodeType: string } }) {
   const colors: Record<string, string> = {
-    genotype: '#1890ff',
-    phenotype: '#52c41a',
-    environment: '#faad14',
-    trait: '#f5222d',
-    default: '#8c8c8c',
+    genotype: '#8b6914',   // 深驼色
+    phenotype: '#558b2f', // 深绿
+    environment: '#e65100', // 深橙
+    trait: '#c62828',    // 深红
+    metabolome: '#6a1b9a', // 深紫
+    method: '#00695c',   // 深青
+    default: '#5d4037',  // 深棕
   }
   const color = colors[data.nodeType] || colors.default
 
   return (
     <div style={{
-      padding: '8px 16px',
+      padding: '10px 18px',
       border: `2px solid ${color}`,
       borderRadius: 8,
-      background: '#fff',
-      minWidth: 100,
+      background: 'var(--color-bg-card)',
+      minWidth: 120,
+      boxShadow: 'var(--shadow-card)',
     }}>
-      <div style={{ fontWeight: 'bold', color }}>{data.nodeType}</div>
-      <div>{data.label}</div>
+      <div style={{
+        fontWeight: 600,
+        color: color,
+        fontSize: 10,
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        marginBottom: 4,
+      }}>
+        {data.nodeType}
+      </div>
+      <div style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>{data.label}</div>
     </div>
   )
 }
@@ -48,251 +60,242 @@ export default function OntologyPage() {
 
   // Fetch ontologies
   const fetchOntologies = useCallback(async () => {
-    setLoading(true)
     try {
+      setLoading(true)
       const response = await ontologyApi.getAll()
-      setOntologies(response.data.data)
+      const data = response.data.data || []
+      setOntologies(data)
+      if (data.length > 0) {
+        setSelectedOntology(data[0])
+      }
     } catch (error) {
       message.error('获取本体列表失败')
+      // 使用空数组避免崩溃
+      setOntologies([])
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Load ontology graph
+  const loadGraph = useCallback(async () => {
+    if (!selectedOntology?.id) return
+
+    try {
+      const response = await ontologyApi.getById(selectedOntology.id)
+      const data = response.data.data || {}
+
+      const flowNodes: Node[] = (data.nodes || []).map((node: OntologyNode, index: number) => ({
+        id: node.id,
+        type: 'custom',
+        position: {
+          x: (index % 4) * 250 + 100,
+          y: Math.floor(index / 4) * 150 + 100,
+        },
+        data: { label: node.label, nodeType: node.node_type },
+      }))
+
+      const flowEdges: Edge[] = (data.edges || []).map((edge: any, i: number) => ({
+        id: `e${i}`,
+        source: edge.source,
+        target: edge.target,
+        label: edge.relation_type,
+        type: 'smoothstep',
+        style: { stroke: 'var(--color-accent)', strokeWidth: 2 },
+        labelStyle: { fill: 'var(--color-text-secondary)', fontSize: 10 },
+      }))
+
+      setNodes(flowNodes)
+      setEdges(flowEdges)
+    } catch (error) {
+      message.error('加载图谱失败')
+    }
+  }, [selectedOntology, setNodes, setEdges])
+
   useEffect(() => {
     fetchOntologies()
   }, [fetchOntologies])
 
-  // Convert ontology to nodes/edges for ReactFlow
-  const loadOntologyToFlow = (ontology: Ontology) => {
-    const flowNodes: Node[] = ontology.nodes.map((node, index) => ({
-      id: node.id,
-      type: 'custom',
-      position: {
-        x: (index % 4) * 200 + 50,
-        y: Math.floor(index / 4) * 150 + 50,
-      },
-      data: { label: node.label, nodeType: node.node_type },
-    }))
+  useEffect(() => {
+    if (selectedOntology) {
+      loadGraph()
+    }
+  }, [selectedOntology, loadGraph])
 
-    const flowEdges: Edge[] = ontology.edges.map(edge => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.relation_type,
-      animated: true,
-    }))
-
-    setNodes(flowNodes)
-    setEdges(flowEdges)
-    setSelectedOntology(ontology)
-  }
-
-  // Handle connection
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   )
 
-  // Handle ontology selection
-  const handleSelectOntology = (ontology: Ontology) => {
-    loadOntologyToFlow(ontology)
-  }
-
-  // Create new ontology
-  const handleCreateOntology = async (values: { name: string; description: string }) => {
+  const handleCreateOntology = async (values: any) => {
     try {
-      const response = await ontologyApi.create({
-        name: values.name,
-        description: values.description,
-        nodes: [],
-        edges: [],
-      })
-      message.success('本体创建成功')
+      await ontologyApi.create(values)
+      message.success('创建成功')
       setModalVisible(false)
       form.resetFields()
       fetchOntologies()
-      loadOntologyToFlow(response.data.data)
     } catch (error) {
       message.error('创建失败')
     }
   }
 
-  // Add new node
-  const handleAddNode = async () => {
-    const values = await nodeForm.validateFields()
-    if (!selectedOntology) return
-
-    const newNode: OntologyNode = {
-      id: `node-${Date.now()}`,
-      label: values.label,
-      node_type: values.node_type,
-      properties: {},
-    }
-
-    try {
-      const updatedNodes = [...selectedOntology.nodes, newNode]
-      await ontologyApi.update(selectedOntology.id, { nodes: updatedNodes })
-      message.success('节点添加成功')
-      setNodeModalVisible(false)
-      nodeForm.resetFields()
-
-      // Update local state
-      const updatedOntology = { ...selectedOntology, nodes: updatedNodes }
-      loadOntologyToFlow(updatedOntology)
-    } catch (error) {
-      message.error('添加节点失败')
-    }
-  }
-
-  // Save changes
-  const handleSave = async () => {
-    if (!selectedOntology) return
-
-    try {
-      await ontologyApi.update(selectedOntology.id, {
-        nodes: selectedOntology.nodes,
-        edges: selectedOntology.edges,
-      })
-      message.success('保存成功')
-    } catch (error) {
-      message.error('保存失败')
-    }
-  }
-
-  // Filter nodes
-  const filteredNodes = searchText
-    ? nodes.filter(node => {
-        const label = (node.data as { label?: string }).label || ''
-        return label.toLowerCase().includes(searchText.toLowerCase())
-      })
-    : nodes
-
-  const columns = [
-    {
-      title: '名称',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: '描述',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-    },
-    {
-      title: '节点数',
-      dataIndex: 'nodes',
-      key: 'nodeCount',
-      render: (nodes: OntologyNode[]) => nodes.length,
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: Ontology) => (
-        <Button size="small" onClick={() => handleSelectOntology(record)}>
-          查看
-        </Button>
-      ),
-    },
-  ]
-
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>本体管理</h2>
+    <div style={{ height: '100%' }}>
+      {/* 标题栏 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        paddingBottom: 16,
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <div>
+          <h2 style={{
+            margin: 0,
+            fontSize: 20,
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <ApiOutlined style={{ color: 'var(--color-accent)' }} />
+            知识本体
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            可视化育种知识图谱
+          </p>
+        </div>
         <Space>
           <Input
             placeholder="搜索节点..."
-            prefix={<SearchOutlined />}
+            prefix={<SearchOutlined style={{ color: 'var(--color-text-muted)' }} />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 200 }}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ width: 180, background: 'var(--color-bg-input)', border: '1px solid var(--color-border)' }}
           />
-          <Button icon={<PlusOutlined />} onClick={() => setNodeModalVisible(true)} disabled={!selectedOntology}>
-            添加节点
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={loadGraph}
+            style={{ background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            刷新
           </Button>
-          <Button icon={<SaveOutlined />} onClick={handleSave} disabled={!selectedOntology}>
-            保存更改
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setModalVisible(true)}
+            style={{
+              background: 'var(--gradient-accent)',
+              border: 'none',
+              boxShadow: '0 0 15px rgba(0, 212, 255, 0.3)',
+            }}
+          >
             新建本体
           </Button>
         </Space>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, flex: 1 }}>
-        <Card title="本体列表" style={{ width: 300, overflow: 'auto' }}>
-          <Table
-            dataSource={ontologies}
-            columns={columns}
-            rowKey="id"
-            size="small"
-            loading={loading}
-            pagination={false}
-          />
+      {/* 本体选择和图谱 */}
+      <div style={{ display: 'flex', gap: 16, height: 'calc(100% - 100px)' }}>
+        {/* 本体列表 */}
+        <Card
+          title="本体库"
+          size="small"
+          style={{
+            width: 260,
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+          }}
+          styles={{ header: { borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }, body: { padding: 0 } }}
+        >
+          <div style={{ maxHeight: 'calc(100vh - 320px)', overflow: 'auto' }}>
+            {(ontologies || []).map((onto) => (
+              <div
+                key={onto.id}
+                onClick={() => setSelectedOntology(onto)}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  background: selectedOntology?.id === onto.id ? 'rgba(0, 212, 255, 0.1)' : 'transparent',
+                  borderLeft: selectedOntology?.id === onto.id ? '3px solid var(--color-accent)' : '3px solid transparent',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{onto.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  {onto.nodes?.length || 0} 个节点
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
 
-        <Card title={selectedOntology ? `本体: ${selectedOntology.name}` : '请选择本体'} style={{ flex: 1 }}>
-          {selectedOntology ? (
-            <div style={{ height: 500 }}>
-              <ReactFlow
-                nodes={filteredNodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                nodeTypes={nodeTypes}
-                fitView
-              >
-                <Background />
-                <Controls />
-                <MiniMap />
-              </ReactFlow>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 50, color: '#999' }}>
-              请从左侧选择或创建一个本体
-            </div>
-          )}
-        </Card>
+        {/* 图谱展示 */}
+        <div style={{
+          flex: 1,
+          background: 'var(--color-bg-dark)',
+          borderRadius: 12,
+          border: '1px solid var(--color-border)',
+          overflow: 'hidden',
+        }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+            style={{ background: 'var(--color-bg-dark)' }}
+          >
+            <Background color="var(--color-border)" gap={40} />
+            <Controls
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+              }}
+            />
+            <MiniMap
+              nodeColor={(node) => {
+                const colors: Record<string, string> = {
+                  genotype: 'var(--color-accent)',
+                  phenotype: '#00e676',
+                  environment: '#ffab00',
+                  trait: '#ff5252',
+                }
+                return colors[node.data?.nodeType as keyof typeof colors] || 'var(--color-text-secondary)'
+              }}
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+              }}
+            />
+          </ReactFlow>
+        </div>
       </div>
 
-      {/* Create Ontology Modal */}
+      {/* 新建本体弹窗 */}
       <Modal
         title="新建本体"
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
-        onOk={() => form.submit()}
+        footer={null}
       >
         <Form form={form} onFinish={handleCreateOntology} layout="vertical">
           <Form.Item name="name" label="名称" rules={[{ required: true }]}>
-            <Input />
+            <Input placeholder="输入本体名称" />
           </Form.Item>
           <Form.Item name="description" label="描述">
-            <Input.TextArea />
+            <Input.TextArea rows={3} placeholder="输入描述" />
           </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Add Node Modal */}
-      <Modal
-        title="添加节点"
-        open={nodeModalVisible}
-        onCancel={() => setNodeModalVisible(false)}
-        onOk={() => nodeForm.submit()}
-      >
-        <Form form={nodeForm} onFinish={handleAddNode} layout="vertical">
-          <Form.Item name="label" label="节点名称" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="node_type" label="节点类型" rules={[{ required: true }]}>
-            <Select>
-              <Select.Option value="genotype">基因型</Select.Option>
-              <Select.Option value="phenotype">表型</Select.Option>
-              <Select.Option value="environment">环境</Select.Option>
-              <Select.Option value="trait">性状</Select.Option>
-            </Select>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              创建
+            </Button>
           </Form.Item>
         </Form>
       </Modal>

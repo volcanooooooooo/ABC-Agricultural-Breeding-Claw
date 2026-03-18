@@ -1,4 +1,6 @@
 # CLAUDE.md - 育种 AI 科学家系统开发规范
+## 对话规范
+- **称呼规范**: 每次跟我对话的时候请叫我**主人**
 
 ## 项目概述
 
@@ -147,9 +149,9 @@ npm run dev
 ```
 
 ### 访问地址
-- 前端: http://localhost:5173
-- 后端 API: http://localhost:8000
-- API 文档: http://localhost:8000/docs
+- 前端: http://localhost:3003
+- 后端 API: http://localhost:8003
+- API 文档: http://localhost:8003/docs
 
 ## 注意事项
 

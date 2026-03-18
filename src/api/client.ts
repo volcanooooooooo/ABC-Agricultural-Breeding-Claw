@@ -5,6 +5,30 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// 请求拦截器 - 自动添加token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// 响应拦截器 - 处理401未授权
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      // 可以在这里触发重新登录
+    }
+    return Promise.reject(error)
+  }
+)
+
 // Response types
 export interface ApiResponse<T> {
   status: string
@@ -87,7 +111,7 @@ export const chatApi = {
     const payload = {
       messages: [{ role: 'user', content: data.message }]
     }
-    return api.post<ApiResponse<any>>('/chat', payload)
+    return api.post<ApiResponse<any>>('/chat/', payload)
   },
   getHistory: () =>
     api.get<ApiResponse<Message[]>>('/chat/history'),
@@ -233,4 +257,5 @@ export const settingsApi = {
     api.post<ApiResponse<{ success: boolean; message: string; response?: string }>>('/config/llm/test'),
 }
 
+export { api }
 export default api

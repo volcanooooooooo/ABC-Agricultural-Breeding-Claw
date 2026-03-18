@@ -95,6 +95,18 @@ class LLMService:
             "api_key_configured": bool(self.api_key)
         }
 
+    def update_config(self, api_key: Optional[str] = None, model: Optional[str] = None,
+                      temperature: Optional[float] = None, max_tokens: Optional[int] = None):
+        """更新 LLM 配置"""
+        if api_key is not None:
+            self.api_key = api_key
+        if model is not None:
+            self.model = model
+        if temperature is not None:
+            self.temperature = temperature
+        if max_tokens is not None:
+            self.max_tokens = max_tokens
+
 
 # 全局单例
 llm_service = LLMService()

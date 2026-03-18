@@ -1,12 +1,235 @@
+/* 育种 AI 科学家系统 - 温暖奶油风格 */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  /* 主色调 - 暖白奶油 */
+  --color-primary: #faf8f5;
+  --color-primary-light: #ffffff;
+  --color-primary-dark: #f0ebe3;
+
+  /* 强调色 - 温暖驼色 */
+  --color-accent: #c9a87c;
+  --color-accent-hover: #b8956a;
+  --color-accent-glow: rgba(201, 168, 124, 0.3);
+
+  /* 辅助色 - 柔和绿 */
+  --color-gold: #d4a574;
+  --color-gold-muted: #b8956a;
+
+  /* 功能色 */
+  --color-success: #7cb342;
+  --color-warning: #ffa726;
+  --color-error: #ef5350;
+
+  /* 文本色 */
+  --color-text-primary: #4a4a4a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-muted: #9e9e9e;
+
+  /* 背景色 */
+  --color-bg-dark: #f5f2ed;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #faf8f5;
+  --color-bg-input: #faf8f5;
+
+  /* 边框色 */
+  --color-border: #e8e4dd;
+  --color-border-light: #d4cfc4;
+
+  /* 渐变 */
+  --gradient-accent: linear-gradient(135deg, #c9a87c 0%, #a8875a 100%);
+  --gradient-header: linear-gradient(180deg, #ffffff 0%, #f5f2ed 100%);
+  --gradient-card: linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
+
+  /* 阴影 */
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px var(--color-accent-glow);
+
+  /* 动画 */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-bg-dark);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-light);
+}
+
+/* 标题字体 */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Noto Sans SC', sans-serif;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* 代码字体 */
+code, pre, .mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 链接 */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* 选中文本 */
+::selection {
+  background: var(--color-accent);
+  color: white;
+}
+
+/* 页面切换动画 */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+}
+
+/* 卡片悬浮效果 */
+.card-hover {
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+/* 发光边框效果 */
+.glow-border {
+  border: 1px solid var(--color-border);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.glow-border:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-glow);
+}
+
+/* 渐变背景装饰 */
+.gradient-bg {
+  position: relative;
+}
+
+.gradient-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-accent);
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+/* 网格背景 */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(200, 190, 175, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 190, 175, 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 玻璃态效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+}
+
+/* 动画 keyframes */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px var(--color-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 25px var(--color-accent-glow), 0 0 40px var(--color-accent-glow);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 温暖装饰元素 */
+.tech-decoration {
+  position: relative;
+}
+
+.tech-decoration::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
 }

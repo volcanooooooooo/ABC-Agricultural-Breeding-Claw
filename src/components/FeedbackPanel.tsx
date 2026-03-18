@@ -1,5 +1,5 @@
 import { Card, Button, Input, message } from 'antd';
-import { ThumbUpOutlined, ThumbDownOutlined } from '@ant-design/icons';
+import { LikeOutlined, DislikeOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 import { feedbackApi } from '../api/client';
 
@@ -42,7 +42,7 @@ export function FeedbackPanel({ analysisId, track }: FeedbackPanelProps) {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <Button
           type={rating === 'positive' ? 'primary' : 'default'}
-          icon={<ThumbUpOutlined />}
+          icon={<LikeOutlined />}
           onClick={() => setRating('positive')}
           style={{ background: rating === 'positive' ? '#52c41a' : undefined }}
         >
@@ -50,7 +50,7 @@ export function FeedbackPanel({ analysisId, track }: FeedbackPanelProps) {
         </Button>
         <Button
           type={rating === 'negative' ? 'primary' : 'default'}
-          icon={<ThumbDownOutlined />}
+          icon={<DislikeOutlined />}
           onClick={() => setRating('negative')}
           danger={rating === 'negative'}
         >

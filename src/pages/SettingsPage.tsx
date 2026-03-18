@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Card, Form, Input, Select, Button, Space, message, Divider, Tabs } from 'antd'
-import { SaveOutlined, KeyOutlined, GlobalOutlined, BgColorsOutlined } from '@ant-design/icons'
+import { Card, Form, Input, Select, Button, Space, message, Divider, Tabs, Tag } from 'antd'
+import { SaveOutlined, KeyOutlined, GlobalOutlined, BgColorsOutlined, CheckCircleOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { settingsApi } from '../api/client'
 
 export default function SettingsPage() {
   const [form] = Form.useForm()
-  const [, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   // Fetch settings
   const fetchSettings = useCallback(async () => {
@@ -18,7 +19,7 @@ export default function SettingsPage() {
       // Use default values
       form.setFieldsValue({
         llm_provider: 'qwen',
-        theme: 'light',
+        theme: 'dark',
         language: 'zh-CN',
       })
     } finally {
@@ -30,13 +31,11 @@ export default function SettingsPage() {
     fetchSettings()
   }, [fetchSettings])
 
-  // Save settings
-  const handleSave = async () => {
-    const values = await form.validateFields()
+  const handleSave = async (values: any) => {
     setSaving(true)
     try {
       await settingsApi.update(values)
-      message.success('设置保存成功')
+      message.success('保存成功')
     } catch (error) {
       message.error('保存失败')
     } finally {
@@ -44,24 +43,51 @@ export default function SettingsPage() {
     }
   }
 
-  const tabItems = [
+  const handleTest = async () => {
+    setTesting(true)
+    try {
+      const response = await settingsApi.testConnection()
+      if (response.data.data.success) {
+        message.success('连接测试成功')
+      } else {
+        message.error(`连接失败: ${response.data.data.message}`)
+      }
+    } catch (error: any) {
+      message.error(`连接失败: ${error.response?.data?.message || error.message}`)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const llmProviderItems = [
     {
-      key: 'llm',
+      key: '1',
       label: (
         <span>
-          <KeyOutlined />
-          LLM 设置
+          <KeyOutlined /> LLM 配置
         </span>
       ),
       children: (
-        <Form form={form} layout="vertical">
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+          initialValues={{
+            llm_provider: 'qwen',
+          }}
+        >
           <Form.Item
             name="llm_provider"
-            label="LLM 提供商"
+            label="模型提供商"
             rules={[{ required: true }]}
           >
             <Select>
-              <Select.Option value="qwen">千问 (Qwen)</Select.Option>
+              <Select.Option value="qwen">
+                <Space>
+                  <span>千问 (Qwen)</span>
+                  <Tag color="blue">推荐</Tag>
+                </Space>
+              </Select.Option>
               <Select.Option value="openai">OpenAI</Select.Option>
               <Select.Option value="anthropic">Anthropic</Select.Option>
             </Select>
@@ -72,113 +98,171 @@ export default function SettingsPage() {
             label="API Key"
             rules={[{ required: true, message: '请输入 API Key' }]}
           >
-            <Input.Password placeholder="请输入 API Key" />
+            <Input.Password placeholder="输入 API Key" />
           </Form.Item>
 
-          <Form.Item name="llm_model" label="模型名称">
-            <Input placeholder="如: qwen-turbo, gpt-4 等" />
+          <Form.Item name="llm_model" label="模型">
+            <Select>
+              <Select.Option value="qwen-turbo">Qwen Turbo (快速)</Select.Option>
+              <Select.Option value="qwen-plus">Qwen Plus (标准)</Select.Option>
+              <Select.Option value="qwen-max">Qwen Max (最强)</Select.Option>
+            </Select>
           </Form.Item>
 
-          <Form.Item name="llm_temperature" label="温度参数">
-            <Input type="number" step="0.1" min="0" max="2" placeholder="0.7" />
+          <Form.Item name="llm_temperature" label="Temperature (0-1)">
+            <Input type="number" min={0} max={1} step={0.1} />
+          </Form.Item>
+
+          <Divider />
+
+          <Form.Item>
+            <Space>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SaveOutlined />}
+                loading={saving}
+                style={{
+                  background: 'var(--gradient-accent)',
+                  border: 'none',
+                }}
+              >
+                保存配置
+              </Button>
+              <Button
+                icon={<CheckCircleOutlined />}
+                onClick={handleTest}
+                loading={testing}
+                style={{ background: 'transparent', border: '1px solid var(--color-border)' }}
+              >
+                测试连接
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       ),
     },
     {
-      key: 'appearance',
+      key: '2',
       label: (
         <span>
-          <BgColorsOutlined />
-          外观
+          <BgColorsOutlined /> 外观
         </span>
       ),
       children: (
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="theme"
-            label="主题"
-            valuePropName="checked"
-          >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+          initialValues={{
+            theme: 'dark',
+            language: 'zh-CN',
+          }}
+        >
+          <Form.Item name="theme" label="主题">
             <Select>
-              <Select.Option value="light">浅色</Select.Option>
-              <Select.Option value="dark">深色</Select.Option>
+              <Select.Option value="dark">
+                <Space>
+                  <BgColorsOutlined /> 深色主题
+                </Space>
+              </Select.Option>
+              <Select.Option value="light">浅色主题</Select.Option>
             </Select>
           </Form.Item>
 
-          <Form.Item name="font_size" label="字体大小">
+          <Form.Item name="language" label="语言">
             <Select>
-              <Select.Option value="small">小</Select.Option>
-              <Select.Option value="medium">中</Select.Option>
-              <Select.Option value="large">大</Select.Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      ),
-    },
-    {
-      key: 'language',
-      label: (
-        <span>
-          <GlobalOutlined />
-          语言
-        </span>
-      ),
-      children: (
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="language"
-            label="界面语言"
-            rules={[{ required: true }]}
-          >
-            <Select>
-              <Select.Option value="zh-CN">简体中文</Select.Option>
+              <Select.Option value="zh-CN">
+                <Space>
+                  <GlobalOutlined /> 简体中文
+                </Space>
+              </Select.Option>
               <Select.Option value="en-US">English</Select.Option>
             </Select>
           </Form.Item>
 
-          <Form.Item name="date_format" label="日期格式">
-            <Select>
-              <Select.Option value="YYYY-MM-DD">YYYY-MM-DD</Select.Option>
-              <Select.Option value="DD/MM/YYYY">DD/MM/YYYY</Select.Option>
-              <Select.Option value="MM/DD/YYYY">MM/DD/YYYY</Select.Option>
-            </Select>
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<SaveOutlined />}
+              loading={saving}
+              style={{
+                background: 'var(--gradient-accent)',
+                border: 'none',
+              }}
+            >
+              保存设置
+            </Button>
           </Form.Item>
         </Form>
+      ),
+    },
+    {
+      key: '3',
+      label: (
+        <span>
+          <ExperimentOutlined /> 关于
+        </span>
+      ),
+      children: (
+        <div>
+          <Card style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)', marginBottom: 16 }}>
+            <h3 style={{ color: 'var(--color-accent)', marginBottom: 12 }}>育种 AI 科学家系统</h3>
+            <p style={{ color: 'var(--color-text-secondary)' }}>版本: 1.0.0</p>
+            <p style={{ color: 'var(--color-text-secondary)' }}>基于本体和 AI 的育种研究辅助系统</p>
+          </Card>
+          <Card style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)' }}>
+            <h4 style={{ color: 'var(--color-text-primary)', marginBottom: 12 }}>技术栈</h4>
+            <ul style={{ color: 'var(--color-text-secondary)', paddingLeft: 20 }}>
+              <li>前端: React + TypeScript + Vite</li>
+              <li>UI: Ant Design + Recharts + React Flow</li>
+              <li>后端: FastAPI + LangChain</li>
+              <li>LLM: 千问 (Qwen)</li>
+            </ul>
+          </Card>
+        </div>
       ),
     },
   ]
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <h2>系统设置</h2>
+    <div>
+      {/* 标题栏 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        paddingBottom: 16,
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <div>
+          <h2 style={{
+            margin: 0,
+            fontSize: 20,
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <BgColorsOutlined style={{ color: 'var(--color-accent)' }} />
+            系统设置
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            配置系统参数
+          </p>
+        </div>
+      </div>
 
-      <Card>
-        <Tabs items={tabItems} />
-
-        <Divider />
-
-        <Space>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={handleSave}
-            loading={saving}
-          >
-            保存设置
-          </Button>
-          <Button onClick={() => form.resetFields()}>
-            重置
-          </Button>
-        </Space>
-      </Card>
-
-      <Card style={{ marginTop: 16 }}>
-        <h3>关于</h3>
-        <p>育种 AI 科学家系统 v1.0.0</p>
-        <p style={{ color: '#666' }}>
-          本系统通过自然语言交互，帮助育种研究人员完成论文研读、自动化数据分析和本体可视化等任务。
-        </p>
+      <Card
+        style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        <Tabs items={llmProviderItems} />
       </Card>
     </div>
   )
