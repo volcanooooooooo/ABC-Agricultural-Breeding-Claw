@@ -15,7 +15,7 @@ const { Sider, Content } = Layout
 interface ChatMessage extends Message {
   isLoading?: boolean
   type?: 'text' | 'progress' | 'analysis' | 'result'
-  progress?: { track: string; status: string; progress: number; currentStep?: string; elapsedTime?: number }
+  progress?: { track: 'tool' | 'llm'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
 }
 
@@ -164,7 +164,7 @@ export default function ChatPage() {
 
     try {
       const response = await chatApi.sendMessage({ message: userMessage.content })
-      const assistantContent = response.data.content
+      const assistantContent = (response.data as any).content || (response.data as any).response
       updateCurrentSession(msgs =>
         msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: assistantContent, isLoading: false } : msg)
       )
@@ -223,7 +223,7 @@ export default function ChatPage() {
           updateCurrentSession(msgs =>
             msgs.map(msg =>
               msg.id === progressMsgId
-                ? { ...msg, type: 'result', analysisResult: data.result, progress: { track: 'completed', status: '完成', progress: 100 } }
+                ? { ...msg, type: 'result', analysisResult: data.result, progress: undefined as any }
                 : msg
             )
           )

@@ -55,8 +55,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         mask: { background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)' },
         content: { background: 'var(--color-bg-card)', borderRadius: 16, padding: 0 },
         header: { background: 'transparent', borderBottom: 'none' },
-        body: { padding: '24px 32px 32px' },
-        closeIcon: { color: 'var(--color-text-muted)' }
+        body: { padding: '24px 32px 32px' }
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
