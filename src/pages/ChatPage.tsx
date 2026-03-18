@@ -4,14 +4,18 @@ import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined
 import { chatApi, analysisApi, datasetApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import AuthModal from '../components/AuthModal'
+import { AnalysisProgress } from '../components/AnalysisProgress'
+import { DualTrackResultCard } from '../components/DualTrackResultCard'
+import { FeedbackHintBanner } from '../components/FeedbackHintBanner'
+import { useSSE } from '../hooks/useSSE'
 
 const { TextArea } = Input
 const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis'
-  progress?: { track: string; status: string; progress: number }
+  type?: 'text' | 'progress' | 'analysis' | 'result'
+  progress?: { track: string; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
 }
 
@@ -219,7 +223,7 @@ export default function ChatPage() {
           updateCurrentSession(msgs =>
             msgs.map(msg =>
               msg.id === progressMsgId
-                ? { ...msg, type: 'analysis', analysisResult: data.result, progress: { track: 'completed', status: '完成', progress: 100 } }
+                ? { ...msg, type: 'result', analysisResult: data.result, progress: { track: 'completed', status: '完成', progress: 100 } }
                 : msg
             )
           )
@@ -231,7 +235,7 @@ export default function ChatPage() {
           updateCurrentSession(msgs =>
             msgs.map(msg =>
               msg.id === progressMsgId
-                ? { ...msg, progress: { track: data.track || '', status: data.status, progress: data.progress } }
+                ? { ...msg, progress: { track: data.track || '', status: data.status, progress: data.progress, currentStep: data.currentStep, elapsedTime: data.elapsedTime } }
                 : msg
             )
           )
@@ -462,7 +466,7 @@ export default function ChatPage() {
                   {msg.role !== 'user' && <Avatar icon={<RobotOutlined />} style={{ background: 'var(--color-bg-dark)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }} />}
                   <div style={{ maxWidth: '70%' }}>
                     {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>天枢</div>}
-                    {msg.isLoading ? <Spin /> : msg.type === 'progress' && msg.progress ? renderProgress(msg.progress) : msg.type === 'analysis' && msg.analysisResult ? renderAnalysisCard(msg.analysisResult) : <div style={{ background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)', color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)', padding: '12px 16px', borderRadius: 16, lineHeight: 1.6 }}>{msg.content}</div>}
+                    {msg.isLoading ? <Spin /> : msg.type === 'progress' && msg.progress ? <AnalysisProgress progress={msg.progress} isAnalyzing={msg.isLoading || false} /> : msg.type === 'analysis' && msg.analysisResult ? <DualTrackResultCard result={msg.analysisResult} /> : msg.type === 'result' && msg.analysisResult ? <DualTrackResultCard result={msg.analysisResult} /> : <div style={{ background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)', color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)', padding: '12px 16px', borderRadius: 16, lineHeight: 1.6 }}>{msg.content}</div>}
                   </div>
                   {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
                 </div>
