@@ -16,12 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routers import chat, ontology, analysis, config
+from app.routers import chat, ontology, analysis, config, datasets
 
 app.include_router(chat.router, prefix="/api/chat", tags=["对话"])
 app.include_router(ontology.router, prefix="/api/ontology", tags=["本体"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["分析"])
 app.include_router(config.router, prefix="/api/config", tags=["配置"])
+app.include_router(datasets.router, prefix="/api/datasets", tags=["数据集"])
 
 @app.get("/")
 async def root():
