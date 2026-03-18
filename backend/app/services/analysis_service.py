@@ -161,3 +161,193 @@ class AnalysisService:
 
 # 全局单例
 analysis_service = AnalysisService()
+
+
+from app.models.analysis import (
+    ToolResult, LLMResult, GeneInfo, ConsistencyInfo
+)
+
+async def run_tool_analysis(
+    df: pd.DataFrame,
+    control_samples: List[str],
+    treatment_samples: List[str],
+    pvalue_threshold: float = 0.05,
+    log2fc_threshold: float = 1.0
+) -> ToolResult:
+    """工具轨分析 - 使用 t-test 进行差异检验"""
+    import time
+    start_time = time.time()
+
+    results = []
+    significant = []
+
+    gene_col = df.columns[0]  # 第一列为基因名
+
+    for _, row in df.iterrows():
+        gene_id = str(row[gene_col])
+
+        control_values = [row[s] for s in control_samples if s in df.columns]
+        treatment_values = [row[s] for s in treatment_samples if s in df.columns]
+
+        if len(control_values) < 2 or len(treatment_values) < 2:
+            continue
+
+        control_mean = np.mean(control_values)
+        treatment_mean = np.mean(treatment_values)
+
+        if control_mean > 0 and treatment_mean > 0:
+            log2fc = np.log2(treatment_mean / control_mean)
+        else:
+            log2fc = 0
+
+        t_stat, pvalue = stats.ttest_ind(control_values, treatment_values)
+
+        if pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold:
+            expression_change = "up" if log2fc > 0 else "down"
+            significant.append(GeneInfo(
+                gene_id=gene_id,
+                expression_change=expression_change,
+                log2fc=float(log2fc),
+                pvalue=float(pvalue)
+            ))
+        else:
+            expression_change = "none"
+
+        results.append(GeneInfo(
+            gene_id=gene_id,
+            expression_change=expression_change,
+            log2fc=float(log2fc),
+            pvalue=float(pvalue)
+        ))
+
+    execution_time = time.time() - start_time
+
+    return ToolResult(
+        method="ttest_scipy",
+        significant_genes=significant,
+        all_genes=results,
+        execution_time=execution_time
+    )
+
+
+async def run_llm_analysis(
+    df: pd.DataFrame,
+    control_samples: List[str],
+    treatment_samples: List[str],
+    model: str = "qwen-turbo"
+) -> LLMResult:
+    """大模型轨分析 - 调用千问 API"""
+    import time
+    import re
+    start_time = time.time()
+
+    gene_col = df.columns[0]
+    summary_data = []
+
+    for _, row in df.head(20).iterrows():
+        gene_id = str(row[gene_col])
+        control_values = [row[s] for s in control_samples if s in df.columns]
+        treatment_values = [row[s] for s in treatment_samples if s in df.columns]
+
+        control_mean = np.mean(control_values) if control_values else 0
+        treatment_mean = np.mean(treatment_values) if treatment_values else 0
+
+        summary_data.append({
+            "gene": gene_id,
+            "control_mean": round(control_mean, 2),
+            "treatment_mean": round(treatment_mean, 2)
+        })
+
+    prompt = f"""你是一个基因表达差异分析专家。请分析以下基因表达数据，找出可能的上调基因和下调基因。
+
+对照组样本: {', '.join(control_samples)}
+处理组样本: {', '.join(treatment_samples)}
+
+基因表达数据(前20个):
+{chr(10).join([f"- {g['gene']}: 对照组均值={g['control_mean']}, 处理组均值={g['treatment_mean']}" for g in summary_data])}
+
+请分析并返回:
+1. 可能上调的基因(处理组明显高于对照组)
+2. 可能下调的基因(处理组明显低于对照组)
+3. 你的推理过程
+
+请以JSON格式返回:
+{{
+  "upregulated_genes": ["gene1", "gene2"],
+  "downregulated_genes": ["gene3"],
+  "reasoning": "你的分析推理过程"
+}}
+"""
+
+    from app.services.llm_service import llm_service
+
+    llm_result = await llm_service.chat(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500
+    )
+
+    execution_time = time.time() - start_time
+
+    if "error" in llm_result:
+        return LLMResult(
+            model=model,
+            significant_genes=[],
+            reasoning=f"LLM调用失败: {llm_result.get('error')}",
+            execution_time=execution_time
+        )
+
+    content = llm_result.get("content", "")
+
+    significant_genes = []
+    try:
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            result = json.loads(json_match.group())
+
+            up_genes = result.get("upregulated_genes", [])
+            down_genes = result.get("downregulated_genes", [])
+
+            for g in up_genes:
+                significant_genes.append(GeneInfo(
+                    gene_id=g,
+                    expression_change="up",
+                    reason="LLM判断上调"
+                ))
+            for g in down_genes:
+                significant_genes.append(GeneInfo(
+                    gene_id=g,
+                    expression_change="down",
+                    reason="LLM判断下调"
+                ))
+    except Exception:
+        pass
+
+    return LLMResult(
+        model=model,
+        significant_genes=significant_genes,
+        reasoning=content[:500],
+        execution_time=execution_time
+    )
+
+
+def calculate_consistency(
+    tool_result: ToolResult,
+    llm_result: LLMResult
+) -> ConsistencyInfo:
+    """计算一致性"""
+    tool_genes = {g.gene_id for g in tool_result.significant_genes}
+    llm_genes = {g.gene_id for g in llm_result.significant_genes}
+
+    overlap = list(tool_genes & llm_genes)
+    tool_only = list(tool_genes - llm_genes)
+    llm_only = list(llm_genes - tool_genes)
+
+    total = len(tool_genes)
+    overlap_rate = len(overlap) / total if total > 0 else 0
+
+    return ConsistencyInfo(
+        overlap=overlap,
+        tool_only=tool_only,
+        llm_only=llm_only,
+        overlap_rate=round(overlap_rate, 2)
+    )
