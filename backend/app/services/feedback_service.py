@@ -1,10 +1,12 @@
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
 from app.models.feedback import Feedback, FeedbackCreate
+from app.models.db_models import FeedbackHintDB
 
 FEEDBACK_FILE = Path("backend/data/feedback.json")
 
@@ -48,3 +50,48 @@ class FeedbackService:
 
 
 feedback_service = FeedbackService()
+
+
+def extract_keywords(text: str) -> list[str]:
+    """从文本中提取关键词（基因名、基因ID等）"""
+    if not text:
+        return []
+
+    keywords = []
+
+    # 匹配基因名模式
+    gene_pattern = r'(?:gene[_-]?\w+|AT[1-5CG]\w+|LOC_\w+)'
+    genes = re.findall(gene_pattern, text, re.IGNORECASE)
+    keywords.extend([g.lower() for g in genes])
+
+    # 匹配常见关键词
+    manual_keywords = ['漏检', '误检', '重要', '准确', '遗漏', '错误', '好', '差']
+    for kw in manual_keywords:
+        if kw in text:
+            keywords.append(kw)
+
+    return list(set(keywords))
+
+
+def process_feedback(feedback, db):
+    """处理反馈并更新hint表"""
+    hint_type = 'warning' if feedback.rating == 'negative' else 'praise'
+    keywords = extract_keywords(feedback.comment or '')
+
+    for keyword in keywords:
+        existing = db.query(FeedbackHintDB).filter_by(keyword=keyword, track=feedback.track).first()
+        if existing:
+            existing.frequency += 1
+            existing.last_seen = datetime.utcnow()
+            existing.summary = (feedback.comment or '')[:100]
+        else:
+            hint = FeedbackHintDB(
+                keyword=keyword,
+                track=feedback.track,
+                hint_type=hint_type,
+                summary=(feedback.comment or '')[:100],
+                frequency=1
+            )
+            db.add(hint)
+
+    db.commit()
