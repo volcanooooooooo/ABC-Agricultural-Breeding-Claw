@@ -11,6 +11,7 @@ from .analysis import (
     CompareRequest,
     CompareResponse,
 )
+from .db_models import AnalysisDB, FeedbackHintDB
 
 __all__ = [
     "Dataset",
@@ -25,4 +26,6 @@ __all__ = [
     "AnalysisResult",
     "CompareRequest",
     "CompareResponse",
+    "AnalysisDB",
+    "FeedbackHintDB",
 ]
