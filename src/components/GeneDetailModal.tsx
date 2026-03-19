@@ -127,31 +127,31 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
   }
 
   const fetchHistoryAnalyses = async (geneId: string) => {
-  setLoadingHistory(true)
-  try {
-    const res = await analysisApi.getResultsByGene(geneId)
-    setHistoryAnalyses(res.data?.data || [])
-  } catch (e) {
-    console.error('Failed to fetch history analyses:', e)
-    setHistoryAnalyses([])
-  } finally {
-    setLoadingHistory(false)
+    setLoadingHistory(true)
+    try {
+      const res = await analysisApi.getResultsByGene(geneId)
+      setHistoryAnalyses(res.data?.data || [])
+    } catch (e) {
+      console.error('Failed to fetch history analyses:', e)
+      setHistoryAnalyses([])
+    } finally {
+      setLoadingHistory(false)
+    }
   }
-}
 
-const handleViewHistoryDetail = async (jobId: string) => {
-  setSelectedHistoryId(jobId)
-  setLoadingHistoryDetail(true)
-  try {
-    const res = await analysisApi.getResult(jobId)
-    setSelectedHistoryResult(res.data?.data || null)
-  } catch (e) {
-    console.error('Failed to fetch analysis detail:', e)
-    setSelectedHistoryResult(null)
-  } finally {
-    setLoadingHistoryDetail(false)
+  const handleViewHistoryDetail = async (jobId: string) => {
+    setSelectedHistoryId(jobId)
+    setLoadingHistoryDetail(true)
+    try {
+      const res = await analysisApi.getResult(jobId)
+      setSelectedHistoryResult(res.data?.data || null)
+    } catch (e) {
+      console.error('Failed to fetch analysis detail:', e)
+      setSelectedHistoryResult(null)
+    } finally {
+      setLoadingHistoryDetail(false)
+    }
   }
-}
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
