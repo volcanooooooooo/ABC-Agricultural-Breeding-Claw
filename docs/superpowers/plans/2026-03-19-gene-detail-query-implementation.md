@@ -23,7 +23,7 @@
 
 - [ ] **Step 1: Add FeedbackHint interface and update imports**
 
-Update the import line to add `useEffect` and add `FeedbackHint` interface:
+Update the import line to add `useEffect` and add `FeedbackHint` interface. Also update `GeneDetailModalProps` to add optional `showFeedback` prop:
 
 ```typescript
 import { useState, useEffect } from 'react'
@@ -39,23 +39,34 @@ interface FeedbackHint {
   summary: string
   frequency: number
 }
+
+interface GeneDetailModalProps {
+  geneId: string
+  result: AnalysisResult
+  open: boolean
+  onClose: () => void
+  showFeedback?: boolean  // 新增：是否显示反馈区域（默认 true）
+}
 ```
 
 - [ ] **Step 2: Add state for feedback warnings**
 
-Find the line with `const [annotation, setAnnotation] = useState('')` and add after it:
+Find the line with `const [annotation, setAnnotation] = useState('')` and add after it. Also update the function signature to use props:
 
 ```typescript
-const [feedbackWarnings, setFeedbackWarnings] = useState<FeedbackHint[]>([])
-const [loadingFeedback, setLoadingFeedback] = useState(false)
+export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = true }: GeneDetailModalProps) {
+  const [annotation, setAnnotation] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [feedbackWarnings, setFeedbackWarnings] = useState<FeedbackHint[]>([])
+  const [loadingFeedback, setLoadingFeedback] = useState(false)
 ```
 
-- [ ] **Step 3: Add fetchGeneFeedback function**
+- [ ] **Step 3: Add fetchGeneFeedback function with retry logic**
 
 Find the `handleSubmitAnnotation` function and add BEFORE it:
 
 ```typescript
-const fetchGeneFeedback = async (geneId: string) => {
+const fetchGeneFeedback = async (geneId: string, retryCount = 0) => {
   setLoadingFeedback(true)
   try {
     // 1. 精确匹配：获取包含该基因ID的原始反馈
@@ -97,6 +108,13 @@ const fetchGeneFeedback = async (geneId: string) => {
     setFeedbackWarnings(sorted.slice(0, 3))
   } catch (e) {
     console.error('Failed to fetch gene feedback:', e)
+    // 网络超时或其他错误，5秒后重试一次
+    if (retryCount < 1) {
+      setTimeout(() => {
+        fetchGeneFeedback(geneId, retryCount + 1)
+      }, 5000)
+      return // 等待重试，不关闭loading
+    }
   } finally {
     setLoadingFeedback(false)
   }
@@ -123,7 +141,7 @@ Inside the Modal component's return statement, find the first child `<div style=
 
 ```typescript
 {/* 历史反馈区域 */}
-{(feedbackWarnings.length > 0 || loadingFeedback) && (
+{showFeedback && (feedbackWarnings.length > 0 || loadingFeedback) && (
   <div style={{
     background: 'rgba(250, 204, 21, 0.1)',
     border: '1px solid rgba(250, 204, 21, 0.3)',
@@ -193,8 +211,8 @@ Find the `detectAnalysisIntent` function and add the new function AFTER it:
 const detectGeneQueryIntent = (text: string): string | null => {
   // 基因查询模式：查看/展示 + 基因名
   const patterns = [
-    /基因(\w+)/i,           // "查看 Gene7" / "展示基因Gene7"
-    /(gene\d+)/i,          // "查看 gene7"
+    /基因(\w+)/i,           // "展示基因Gene7" / "查看基因Gene7详情"
+    /(gene\d+)/i,          // "查看 gene7" / "gene7详情"
     /(\w+)\s*详情/i,        // "Gene7详情" / "基因详情"
   ]
 
