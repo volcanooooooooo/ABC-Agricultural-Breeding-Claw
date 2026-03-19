@@ -58,6 +58,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
   const expressionChange = toolGene?.expression_change || llmGene?.expression_change || 'none'
 
   const fetchGeneFeedback = async (geneId: string, retryCount = 0) => {
+    let isRetrying = false
     setLoadingFeedback(true)
     try {
       // 1. 精确匹配：获取包含该基因ID的原始反馈
@@ -101,13 +102,16 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
       console.error('Failed to fetch gene feedback:', e)
       // 网络超时或其他错误，5秒后重试一次
       if (retryCount < 1) {
+        isRetrying = true
         setTimeout(() => {
           fetchGeneFeedback(geneId, retryCount + 1)
         }, 5000)
         return // 等待重试，不关闭loading
       }
     } finally {
-      setLoadingFeedback(false)
+      if (!isRetrying) {
+        setLoadingFeedback(false)
+      }
     }
   }
 
