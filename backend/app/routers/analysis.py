@@ -5,7 +5,7 @@ import asyncio
 import json
 import uuid
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from app.services.analysis_service import analysis_service
@@ -254,6 +254,45 @@ async def start_comparison(request: CompareRequest):
     return CompareResponse(job_id=job_id, status="started")
 
 
+@router.get("/results")
+async def get_analysis_results(gene_id: Optional[str] = None):
+    """获取分析结果列表，支持按基因筛选"""
+    results = analysis_service.get_results(gene_id)
+
+    # 计算每个结果的反馈统计
+    from app.services.feedback_service import feedback_service
+    all_feedbacks = feedback_service.get_all()
+
+    summary_results = []
+    for result in results:
+        job_id = result.get('id')
+        job_feedbacks = [fb for fb in all_feedbacks if fb.analysis_id == job_id]
+
+        positive_count = sum(1 for fb in job_feedbacks if fb.rating == 'positive')
+        total_count = len(job_feedbacks)
+        avg_rating = positive_count / total_count if total_count > 0 else 0.0
+
+        summary_results.append({
+            "id": result.get('id'),
+            "dataset_id": result.get('dataset_id'),
+            "dataset_name": result.get('dataset_name'),
+            "created_at": result.get('created_at'),
+            "feedback_count": total_count,
+            "avg_rating": round(avg_rating, 2)
+        })
+
+    return summary_results
+
+
+@router.get("/results/{job_id}")
+async def get_analysis_result(job_id: str):
+    """获取单个分析结果详情"""
+    result = analysis_service.get_result(job_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Analysis result not found")
+    return result
+
+
 @router.get("/stream/{job_id}")
 async def stream_analysis(job_id: str):
     """SSE 流式接收分析进度和结果"""
@@ -271,30 +310,69 @@ async def stream_analysis(job_id: str):
         # 读取数据
         df = pd.read_csv(dataset.file_path)
 
-        try:
-            # 发送开始消息
-            yield "data: {\"job_id\": \"%s\", \"status\": \"started\", \"progress\": 0}\n\n" % job_id
+        async def delay(seconds: float):
+            """异步延迟"""
+            await asyncio.sleep(seconds)
 
-            # 并行执行双轨分析
+        try:
+            # 步骤0: 开始 (0%)
+            yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"正在初始化分析任务...\", \"progress\": 5, \"currentStep\": \"读取数据集\"}\n\n" % job_id
+            await delay(0.5)
+
+            yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"正在加载数据...\", \"progress\": 10, \"currentStep\": \"数据加载\"}\n\n" % job_id
+            await delay(0.5)
+
+            yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"数据加载完成，正在准备分析...\", \"progress\": 15, \"currentStep\": \"数据预处理\"}\n\n" % job_id
+            await delay(0.4)
+
+            # 步骤1: 工具轨分析 (15% -> 45%)
+            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在进行t检验分析...\", \"progress\": 20, \"currentStep\": \"工具轨 - 统计检验\"}\n\n" % job_id
+            await delay(0.6)
+
+            # 启动工具轨任务
             tool_task = run_tool_analysis(
                 df, control_samples, treatment_samples,
                 request.pvalue_threshold, request.log2fc_threshold
             )
+
+            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在计算差异表达...\", \"progress\": 30, \"currentStep\": \"工具轨 - 差异分析\"}\n\n" % job_id
+            await delay(0.5)
+
+            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在进行p值校正...\", \"progress\": 38, \"currentStep\": \"工具轨 - p值校正\"}\n\n" % job_id
+            await delay(0.5)
+
+            # 步骤2: LLM轨分析 (45% -> 70%)
+            yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"正在调用大模型进行分析...\", \"progress\": 45, \"currentStep\": \"LLM轨 - 模型调用\"}\n\n" % job_id
+            await delay(0.4)
+
+            # 启动LLM轨任务
             llm_task = run_llm_analysis(
                 df, control_samples, treatment_samples
             )
 
-            # 工具轨进度
-            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在进行t检验分析...\", \"progress\": 30}\n\n" % job_id
+            yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型正在解读数据...\", \"progress\": 55, \"currentStep\": \"LLM轨 - 数据解读\"}\n\n" % job_id
+            await delay(0.5)
 
-            # 等待结果
+            yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型正在推理差异基因...\", \"progress\": 65, \"currentStep\": \"LLM轨 - 基因推理\"}\n\n" % job_id
+            await delay(0.4)
+
+            # 等待两个任务完成
             tool_result, llm_result = await asyncio.gather(tool_task, llm_task)
 
-            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"工具轨分析完成\", \"progress\": 60}\n\n" % job_id
-            yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型分析完成\", \"progress\": 90}\n\n" % job_id
+            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"工具轨分析完成\", \"progress\": 72, \"currentStep\": \"工具轨 - 完成\"}\n\n" % job_id
+            await delay(0.3)
 
-            # 计算一致性
+            yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型轨分析完成\", \"progress\": 78, \"currentStep\": \"LLM轨 - 完成\"}\n\n" % job_id
+            await delay(0.3)
+
+            # 步骤3: 一致性分析 (78% -> 90%)
+            yield "data: {\"job_id\": \"%s\", \"track\": \"consistency\", \"status\": \"正在计算双轨一致性...\", \"progress\": 82, \"currentStep\": \"一致性分析\"}\n\n" % job_id
+            await delay(0.4)
+
             consistency = calculate_consistency(tool_result, llm_result)
+
+            yield "data: {\"job_id\": \"%s\", \"track\": \"consistency\", \"status\": \"一致性分析完成，正在生成报告...\", \"progress\": 88, \"currentStep\": \"报告生成\"}\n\n" % job_id
+            await delay(0.3)
 
             # 构建结果
             result = AnalysisResult(
@@ -307,12 +385,21 @@ async def stream_analysis(job_id: str):
                 created_at=datetime.utcnow().isoformat() + "Z"
             )
 
+            # === 新增：保存结果到 JSON 文件 ===
+            analysis_service.save_result(job_id, result)
+            # ===
+
+            # 步骤4: 完成 (90% -> 100%)
+            yield "data: {\"job_id\": \"%s\", \"status\": \"completed\", \"progress\": 95, \"currentStep\": \"完成\"}\n\n" % job_id
+            await delay(0.3)
+
             # 发送结果
-            yield "data: {\"job_id\": \"%s\", \"status\": \"completed\", \"progress\": 100}\n\n" % job_id
             yield "data: {\"job_id\": \"%s\", \"result\": %s}\n\n" % (
                 job_id,
                 json.dumps(result.model_dump(), ensure_ascii=False)
             )
+
+            yield "data: {\"job_id\": \"%s\", \"status\": \"completed\", \"progress\": 100, \"currentStep\": \"完成\"}\n\n" % job_id
 
         except Exception as e:
             yield "data: {\"job_id\": \"%s\", \"status\": \"error\", \"message\": \"%s\"}\n\n" % (
