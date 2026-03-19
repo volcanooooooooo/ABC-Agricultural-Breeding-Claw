@@ -233,6 +233,8 @@ export interface AnalysisResult {
   id: string
   dataset_id: string
   dataset_name: string
+  group_control: string
+  group_treatment: string
   tool_result: ToolResult
   llm_result: LLMResult
   consistency: ConsistencyInfo
