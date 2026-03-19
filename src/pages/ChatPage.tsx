@@ -159,7 +159,7 @@ export default function ChatPage() {
     const patterns = [
       /基因(\w+)/i,           // "展示基因Gene7" / "查看基因Gene7详情"
       /(gene\d+)/i,          // "查看 gene7" / "gene7详情"
-      /(\w+)\s*详情/i,        // "Gene7详情" / "基因详情"
+      /(?:Gene|gene)(\d+)\s*详情/i,  // "Gene7详情" / "gene7详情"
     ]
 
     for (const pattern of patterns) {
@@ -168,8 +168,12 @@ export default function ChatPage() {
         // 返回匹配的基因ID
         const geneId = match[1] || match[0]
         // 标准化为 GeneX 格式
-        if (geneId.toLowerCase().startsWith('gene')) {
+        if (/^gene\d+$/i.test(geneId)) {
           return 'Gene' + geneId.slice(4).toLowerCase()
+        }
+        // 如果是纯数字（如 "7详情" 匹配到的），加上 Gene 前缀
+        if (/^\d+$/.test(geneId)) {
+          return 'Gene' + geneId
         }
         return geneId
       }
