@@ -51,10 +51,21 @@
 1. **基因ID精确匹配**：从 `/feedbacks` 获取所有 feedback，筛选包含目标 gene_id 的记录
 2. **关键词模糊匹配**：调用 `/feedbacks/hints?keyword=Gene7` 获取 FeedbackHint
 
-### 3.2 展示优先级
-- 优先展示 **warning** 类型的反馈（负面评价）
-- 按 frequency 降序排列，频率越高的反馈越靠前
-- 限制展示数量，最多显示 3 条
+### 3.2 展示优先级与去重规则
+1. **去重逻辑**：精确匹配（gene_ids 包含目标基因）和关键词匹配（hint.keyword 包含目标基因）可能产生重复，以 `id` 字段去重
+2. **排序规则**：按 `frequency` 降序排列，频率越高的反馈越靠前
+3. **类型优先级**：warning 类型反馈优先展示
+4. **数量限制**：最多显示 3 条
+
+```typescript
+// 合并去重，优先展示 warning，按 frequency 降序
+const combined = [...warningsFromHints, ...negativeGeneFeedbacks]
+const unique = combined.filter((item, idx, arr) =>
+  arr.findIndex(t => t.id === item.id) === idx
+)
+const sorted = unique.sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+setFeedbackWarnings(sorted.slice(0, 3))
+```
 
 ---
 
@@ -144,22 +155,37 @@ const fetchGeneFeedback = async (geneId: string) => {
   setLoadingFeedback(true)
   try {
     // 1. 精确匹配：获取包含该基因ID的原始反馈
-    const allFeedbacks = await feedbackApi.getAll()
-    const geneFeedbacks = allFeedbacks.data.filter(
+    const allFeedbacksRes = await feedbackApi.getAll()
+    const geneFeedbacks = (allFeedbacksRes.data || []).filter(
       fb => fb.gene_ids?.includes(geneId)
     )
 
     // 2. 关键词匹配：调用 hints API
-    const hintRes = await api.get('/feedbacks/hints', {
-      params: { keyword: geneId, limit: 3 }
+    const hintRes = await api.get<{ data: FeedbackHint[] }>('/feedbacks/hints', {
+      params: { keyword: geneId, limit: 10 }
     })
+    const hints = hintRes.data?.data || []
+    const warningsFromHints = hints.filter(h => h.hint_type === 'warning')
 
-    // 3. 合并去重，优先展示 warning
-    const warnings = [
-      ...hintRes.data.filter(h => h.hint_type === 'warning'),
-      ...geneFeedbacks.filter(f => f.rating === 'negative')
-    ]
-    setFeedbackWarnings(warnings.slice(0, 3))
+    // 3. 合并去重：warning hints + 负面原始反馈
+    const negativeGeneFeedbacks = geneFeedbacks
+      .filter(f => f.rating === 'negative')
+      .map(f => ({
+        id: f.id,
+        keyword: geneId,
+        track: f.track,
+        hint_type: 'warning' as const,
+        summary: f.comment || `对 ${geneId} 的负面评价`,
+        frequency: 1 // 原始反馈 frequency 默认为 1
+      }))
+
+    // 4. 合并 + 去重（以 id 去重）+ 排序 + 限制数量
+    const combined = [...warningsFromHints, ...negativeGeneFeedbacks]
+    const unique = combined.filter((item, idx, arr) =>
+      arr.findIndex(t => t.id === item.id) === idx
+    )
+    const sorted = unique.sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+    setFeedbackWarnings(sorted.slice(0, 3))
   } catch (e) {
     console.error('Failed to fetch gene feedback:', e)
   } finally {
