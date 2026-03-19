@@ -28,6 +28,14 @@ class FeedbackService:
         data = self._load_feedbacks()
         return [Feedback(**d) for d in data]
 
+    def get_by_gene(self, gene_id: str) -> List[Feedback]:
+        """按基因 ID 获取反馈"""
+        data = self._load_feedbacks()
+        return [
+            Feedback(**d) for d in data
+            if d.get('gene_ids') and gene_id in d['gene_ids']
+        ]
+
     def create(self, feedback: FeedbackCreate) -> Feedback:
         now = datetime.utcnow().isoformat() + "Z"
 
