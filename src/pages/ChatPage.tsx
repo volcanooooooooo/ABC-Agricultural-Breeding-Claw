@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Fragment } from 'react'
-import { Input, Button, List, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space, Modal, Radio } from 'antd'
+import { Input, Button, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space } from 'antd'
 import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined, MessageOutlined, FileOutlined, ArrowRightOutlined, LogoutOutlined, SettingOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import { chatApi, analysisApi, datasetApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +7,7 @@ import AuthModal from '../components/AuthModal'
 import { AnalysisProgress } from '../components/AnalysisProgress'
 import { DualTrackResultCard } from '../components/DualTrackResultCard'
 import { FeedbackHintBanner } from '../components/FeedbackHintBanner'
+import { GeneDetailModal } from '../components/GeneDetailModal'
 import { useSSE } from '../hooks/useSSE'
 
 const { TextArea } = Input
@@ -14,9 +15,12 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result'
-  progress?: { track: 'tool' | 'llm'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query'
+  progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
+  candidateDatasets?: Dataset[]
+  selectedDataset?: Dataset
+  geneId?: string  // 新增：查询的基因ID
 }
 
 interface ChatSession {
@@ -35,10 +39,10 @@ export default function ChatPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [authModalOpen, setAuthModalOpen] = useState(false)
-  // 数据集选择弹窗
-  const [datasetModalOpen, setDatasetModalOpen] = useState(false)
-  const [pendingAnalysisMsg, setPendingAnalysisMsg] = useState<string>('')
   const [analysisStartTime, setAnalysisStartTime] = useState<number>(0)
+  const [geneModalOpen, setGeneModalOpen] = useState(false)
+  const [selectedGene, setSelectedGene] = useState<string>('')
+  const [selectedResult, setSelectedResult] = useState<AnalysisResult | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null
@@ -72,30 +76,32 @@ export default function ChatPage() {
     }
   }, [sessions])
 
+  // 模拟数据集候选列表（实际项目中从后端加载）
+  const MOCK_DATASETS: Dataset[] = [
+    { id: 'ds_rice_20240306', name: '水稻3月6日表达数据', description: '水稻基因表达矩阵 - 3月6日实验数据，包含10个基因、6个样本', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_rice_20240306.csv', gene_count: 10, sample_count: 6, groups: { control: ['Ctrl_1', 'Ctrl_2', 'Ctrl_3'], treatment: ['Treat_1', 'Treat_2', 'Treat_3'] }, created_at: '2024-03-06', updated_at: '2024-03-06' },
+    { id: 'ds_corn_20240115', name: '玉米干旱胁迫转录组', description: '玉米在干旱胁迫条件下的基因表达谱分析，包含48个样本', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_corn_20240115.csv', gene_count: 156, sample_count: 48, groups: { control: ['Corn_CK_1', 'Corn_CK_2', 'Corn_CK_3', 'Corn_CK_4'], treatment: ['Corn_DR_1', 'Corn_DR_2', 'Corn_DR_3', 'Corn_DR_4'] }, created_at: '2024-01-15', updated_at: '2024-01-15' },
+    { id: 'ds_wheat_20231220', name: '冬小麦春化阶段表达谱', description: '冬小麦不同春化阶段的转录组测序数据', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_wheat_20231220.csv', gene_count: 234, sample_count: 36, groups: { control: ['Wheat_V0_1', 'Wheat_V0_2', 'Wheat_V0_3'], treatment: ['Wheat_V3_1', 'Wheat_V3_2', 'Wheat_V3_3'] }, created_at: '2023-12-20', updated_at: '2023-12-20' },
+    { id: 'ds_soybean_20240228', name: '大豆结瘤固氮表达数据', description: '大豆根瘤发育不同时期的基因表达矩阵', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_soybean_20240228.csv', gene_count: 89, sample_count: 24, groups: { control: ['Soy_Nodule_0_1', 'Soy_Nodule_0_2', 'Soy_Nodule_0_3'], treatment: ['Soy_Nodule_14_1', 'Soy_Nodule_14_2', 'Soy_Nodule_14_3'] }, created_at: '2024-02-28', updated_at: '2024-02-28' },
+    { id: 'ds_rice_nitrogen_20231110', name: '水稻氮响应表达谱', description: '水稻在不同氮浓度条件下的转录组分析', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_rice_nitrogen_20231110.csv', gene_count: 312, sample_count: 42, groups: { control: ['Rice_LN_1', 'Rice_LN_2', 'Rice_LN_3'], treatment: ['Rice_HN_1', 'Rice_HN_2', 'Rice_HN_3'] }, created_at: '2023-11-10', updated_at: '2023-11-10' },
+    { id: 'ds_arabidopsis_20240105', name: '拟南芥光周期响应数据', description: '拟南芥在不同光照周期下的基因表达分析', data_type: 'expression_matrix', file_path: 'backend/data/datasets/ds_arabidopsis_20240105.csv', gene_count: 67, sample_count: 18, groups: { control: ['Ara_LD_1', 'Ara_LD_2', 'Ara_LD_3'], treatment: ['Ara_SD_1', 'Ara_SD_2', 'Ara_SD_3'] }, created_at: '2024-01-05', updated_at: '2024-01-05' },
+  ]
+
   // 加载数据集
   const loadDatasets = async () => {
     try {
       const res = await datasetApi.getAll()
       const apiDatasets = res?.data?.data || []
 
-      // 如果没有数据集，添加示例数据
+      // 如果没有数据集，使用模拟数据
       if (apiDatasets.length === 0) {
-        setDatasets([
-          { id: 'ds_rice_20240306', name: '水稻3月6日表达数据', description: '水稻基因表达矩阵 - 3月6日实验', data_type: 'expression_matrix', file_path: '', gene_count: 5000, sample_count: 6, groups: { control: ['C1', 'C2', 'C3'], treatment: ['T1', 'T2', 'T3'] }, created_at: '2024-03-06', updated_at: '2024-03-06' },
-          { id: 'ds_mouse_20240310', name: '小鼠RNA-seq数据', description: '小鼠肝组织RNA测序数据', data_type: 'expression_matrix', file_path: '', gene_count: 15000, sample_count: 8, groups: { control: ['WT1', 'WT2', 'WT3', 'WT4'], treatment: ['KO1', 'KO2', 'KO3', 'KO4'] }, created_at: '2024-03-10', updated_at: '2024-03-10' },
-          { id: 'ds_arabidopsis_20240315', name: '拟南芥叶片数据', description: '拟南芥干旱胁迫实验', data_type: 'expression_matrix', file_path: '', gene_count: 8000, sample_count: 6, groups: { control: ['N1', 'N2', 'N3'], treatment: ['D1', 'D2', 'D3'] }, created_at: '2024-03-15', updated_at: '2024-03-15' },
-        ])
+        setDatasets(MOCK_DATASETS)
       } else {
         setDatasets(apiDatasets)
       }
     } catch (e) {
       console.error(e)
-      // 即使出错也设置示例数据
-      setDatasets([
-        { id: 'ds_rice_20240306', name: '水稻3月6日表达数据', description: '水稻基因表达矩阵 - 3月6日实验', data_type: 'expression_matrix', file_path: '', gene_count: 5000, sample_count: 6, groups: { control: ['C1', 'C2', 'C3'], treatment: ['T1', 'T2', 'T3'] }, created_at: '2024-03-06', updated_at: '2024-03-06' },
-        { id: 'ds_mouse_20240310', name: '小鼠RNA-seq数据', description: '小鼠肝组织RNA测序数据', data_type: 'expression_matrix', file_path: '', gene_count: 15000, sample_count: 8, groups: { control: ['WT1', 'WT2', 'WT3', 'WT4'], treatment: ['KO1', 'KO2', 'KO3', 'KO4'] }, created_at: '2024-03-10', updated_at: '2024-03-10' },
-        { id: 'ds_arabidopsis_20240315', name: '拟南芥叶片数据', description: '拟南芥干旱胁迫实验', data_type: 'expression_matrix', file_path: '', gene_count: 8000, sample_count: 6, groups: { control: ['N1', 'N2', 'N3'], treatment: ['D1', 'D2', 'D3'] }, created_at: '2024-03-15', updated_at: '2024-03-15' },
-      ])
+      // 即使出错也设置模拟数据
+      setDatasets(MOCK_DATASETS)
     }
   }
 
@@ -147,15 +153,118 @@ export default function ChatPage() {
     return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
   }
 
+  // 基因查询意图识别
+  const detectGeneQueryIntent = (text: string): string | null => {
+    // 基因查询模式：查看/展示 + 基因名
+    const patterns = [
+      /基因(\w+)/i,           // "展示基因Gene7" / "查看基因Gene7详情"
+      /(gene\d+)/i,          // "查看 gene7" / "gene7详情"
+      /(\w+)\s*详情/i,        // "Gene7详情" / "基因详情"
+    ]
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern)
+      if (match) {
+        // 返回匹配的基因ID
+        const geneId = match[1] || match[0]
+        // 标准化为 GeneX 格式
+        if (geneId.toLowerCase().startsWith('gene')) {
+          return 'Gene' + geneId.slice(4).toLowerCase()
+        }
+        return geneId
+      }
+    }
+    return null
+  }
+
   const handleSend = async () => {
     if (!input.trim() || loading || !currentSessionId) return
 
     // 检查是否是分析意图
     if (detectAnalysisIntent(input) && datasets.length > 0) {
-      // 显示数据集选择弹窗
-      setPendingAnalysisMsg(input.trim())
-      setDatasetModalOpen(true)
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: input.trim(),
+        timestamp: new Date().toString(),
+      }
+
+      updateCurrentSession(msgs => [...msgs, userMsg])
+      setInput('')
+      setLoading(true)
+      setIsAtBottom(true)
+
+      // 显示"正在检索相关数据集..."
+      const searchingMsgId = (Date.now() + 1).toString()
+      updateCurrentSession(msgs => [...msgs, {
+        id: searchingMsgId,
+        role: 'assistant',
+        content: '正在检索相关数据集...',
+        timestamp: new Date().toString(),
+      }])
+
+      // 模拟检索延迟 1.5 秒
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
+      // 替换检索消息为数据集选择列表
+      updateCurrentSession(msgs =>
+        msgs.map(msg =>
+          msg.id === searchingMsgId
+            ? {
+                ...msg,
+                type: 'dataset-select' as const,
+                candidateDatasets: datasets,
+              }
+            : msg
+        )
+      )
+
+      setLoading(false)
       return
+    }
+
+    // 检查基因查询意图
+    const detectedGeneId = detectGeneQueryIntent(input)
+    if (detectedGeneId && currentSession) {
+      // 查找当前会话中的分析结果
+      const resultMsg = currentSession.messages.find(
+        msg => msg.type === 'progress' && msg.analysisResult
+      )
+
+      if (resultMsg?.analysisResult) {
+        // 找到分析结果，直接打开基因详情弹窗
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: input.trim(),
+          timestamp: new Date().toString(),
+          type: 'gene-query',
+          geneId: detectedGeneId
+        }
+        updateCurrentSession(msgs => [...msgs, userMsg])
+        setInput('')
+        setSelectedGene(detectedGeneId)
+        setSelectedResult(resultMsg.analysisResult)
+        setGeneModalOpen(true)
+        return
+      } else {
+        // 没有分析结果，提示用户先进行分析
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: input.trim(),
+          timestamp: new Date().toString(),
+        }
+        const systemMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `您查询的基因 "${detectedGeneId}" 信息需要先完成分析才能展示。请先发起一个差异表达分析任务。`,
+          timestamp: new Date().toString(),
+        }
+        updateCurrentSession(msgs => [...msgs, userMsg, systemMsg])
+        setInput('')
+        return
+      }
     }
 
     const userMessage: ChatMessage = {
@@ -174,41 +283,29 @@ export default function ChatPage() {
   }
 
   // 确认选择数据集后开始分析
-  const handleDatasetSelect = async (datasetId: string) => {
-    const dataset = datasets.find(d => d.id === datasetId)
-    if (!dataset) return
+  const handleDatasetSelect = async (dataset: Dataset) => {
+    // 移除数据集选择消息
+    updateCurrentSession(msgs =>
+      msgs.filter(msg => msg.type !== 'dataset-select')
+    )
 
-    setDatasetModalOpen(false)
-
-    // 添加用户消息
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: pendingAnalysisMsg,
+    // 添加系统消息显示选择的数据集（结构化卡片形式）
+    updateCurrentSession(msgs => [...msgs, {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      type: 'dataset-selected',
+      content: `已选择数据集「${dataset.name}」，正在开始双轨差异分析...`,
+      selectedDataset: dataset,
       timestamp: new Date().toString(),
-    }
+    }])
 
-    // 添加系统消息
-    updateCurrentSession(msgs => [
-      ...msgs,
-      userMessage,
-      {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `已选择数据集「${dataset.name}」，正在开始双轨差异分析...\n\n📊 数据概览：\n- 基因数量: ${dataset.gene_count}\n- 样本数量: ${dataset.sample_count}\n- 对照组: ${dataset.groups?.control?.join(', ') || 'control'}\n- 处理组: ${dataset.groups?.treatment?.join(', ') || 'treatment'}`,
-        timestamp: new Date().toString(),
-      }
-    ])
-
-    setInput('')
     setLoading(true)
     setIsAtBottom(true)
     setAnalysisStartTime(Date.now())
 
     // 调用分析API
-    await handleAnalysisRequest(pendingAnalysisMsg, dataset)
+    await handleAnalysisRequest('', dataset)
     setLoading(false)
-    setPendingAnalysisMsg('')
   }
 
   // 普通对话
@@ -237,6 +334,35 @@ export default function ChatPage() {
     }
   }
 
+  // 追问处理
+  const handleFollowUp = async (question: string) => {
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: question,
+      timestamp: new Date().toString(),
+    }
+
+    updateCurrentSession(msgs => [...msgs, userMessage])
+    setIsAtBottom(true)
+    await handleNormalChat(userMessage)
+  }
+
+  // 基因点击处理
+  const handleGeneClick = (geneId: string) => {
+    setSelectedGene(geneId)
+    // 找到当前消息中的 analysisResult
+    if (currentSession) {
+      const resultMsg = currentSession.messages.find(
+        msg => msg.type === 'progress' && msg.analysisResult
+      )
+      if (resultMsg?.analysisResult) {
+        setSelectedResult(resultMsg.analysisResult)
+        setGeneModalOpen(true)
+      }
+    }
+  }
+
   // 分析请求
   const handleAnalysisRequest = async (userMessageContent: string, selectedDataset?: Dataset) => {
     const dataset = selectedDataset || datasets[0]
@@ -250,13 +376,14 @@ export default function ChatPage() {
       return
     }
 
+    // 初始进度消息（用于显示进度条）
     const progressMsgId = (Date.now() + 2).toString()
     updateCurrentSession(msgs => [...msgs, {
       id: progressMsgId,
       role: 'assistant',
-      content: '',
       type: 'progress',
-      progress: { track: 'tool', status: '正在解析数据...', progress: 5, currentStep: '初始化分析任务', elapsedTime: 0 },
+      content: '',
+      progress: { track: 'init', status: '正在初始化...', progress: 0, currentStep: '初始化分析任务', elapsedTime: 0 },
       timestamp: new Date().toString(),
     }])
 
@@ -266,20 +393,31 @@ export default function ChatPage() {
         group_control: 'control',
         group_treatment: 'treatment',
       })
-      const { job_id } = compareRes.data.data
+
+      // 兼容两种响应格式：
+      // 1. 后端直接返回 { job_id, status } - compareRes.data 是 CompareResponse
+      // 2. 后端返回 { status, data: { job_id, status } } - compareRes.data.data 是 CompareResponse
+      const resData = compareRes.data as any
+      const jobId = resData?.job_id || resData?.data?.job_id
+
+      if (!jobId) {
+        throw new Error('无法获取分析任务ID')
+      }
+
       const startTime = Date.now()
 
-      const eventSource = new EventSource(`/api/analysis/stream/${job_id}`)
+      const eventSource = new EventSource(`/api/analysis/stream/${jobId}`)
 
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data)
         const elapsedTime = (Date.now() - startTime) / 1000
 
         if (data.result) {
+          // 分析完成
           updateCurrentSession(msgs =>
             msgs.map(msg =>
               msg.id === progressMsgId
-                ? { ...msg, type: 'result', analysisResult: data.result, progress: undefined as any }
+                ? { ...msg, analysisResult: data.result, progress: { ...msg.progress!, progress: 100, status: '分析完成', elapsedTime } }
                 : msg
             )
           )
@@ -288,10 +426,11 @@ export default function ChatPage() {
           message.error(data.message || '分析失败')
           eventSource.close()
         } else if (data.progress !== undefined) {
+          // 更新进度条
           updateCurrentSession(msgs =>
             msgs.map(msg =>
               msg.id === progressMsgId
-                ? { ...msg, progress: { track: data.track || '', status: data.status, progress: data.progress, currentStep: data.currentStep, elapsedTime } }
+                ? { ...msg, progress: { track: data.track || 'init', status: data.status, progress: data.progress, currentStep: data.currentStep, elapsedTime } }
                 : msg
             )
           )
@@ -317,6 +456,146 @@ export default function ChatPage() {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  // 渲染消息内容
+  const renderMessageContent = (msg: ChatMessage) => {
+    // 加载状态
+    if (msg.isLoading) {
+      return <Spin />
+    }
+
+    // 数据集选择卡片
+    if (msg.type === 'dataset-select' && msg.candidateDatasets) {
+      return (
+        <div style={{ background: 'var(--color-bg-card)', padding: 16, borderRadius: 16, border: '1px solid var(--color-border)', minWidth: 400 }}>
+          <div style={{ marginBottom: 12, color: 'var(--color-text-primary)', fontSize: 14 }}>
+            请选择要分析的数据集：
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {msg.candidateDatasets.map(dataset => (
+              <div
+                key={dataset.id}
+                onClick={() => handleDatasetSelect(dataset)}
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--color-bg-input)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)'
+                  e.currentTarget.style.background = 'rgba(0, 212, 255, 0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)'
+                  e.currentTarget.style.background = 'var(--color-bg-input)'
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)', marginBottom: 4 }}>
+                  {dataset.name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                  {dataset.description}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Tag color="blue">基因: {dataset.gene_count}</Tag>
+                  <Tag color="green">样本: {dataset.sample_count}</Tag>
+                  <Tag color="purple">对照: {dataset.groups?.control?.join(', ') || 'control'}</Tag>
+                  <Tag color="red">处理: {dataset.groups?.treatment?.join(', ') || 'treatment'}</Tag>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(0, 212, 255, 0.1)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            💡 分析将同时使用传统统计工具（t检验/DESeq2）和大语言模型进行双轨分析对比
+          </div>
+        </div>
+      )
+    }
+
+    // 已选择数据集卡片
+    if (msg.type === 'dataset-selected' && msg.selectedDataset) {
+      const ds = msg.selectedDataset
+      return (
+        <div style={{ background: 'var(--color-bg-card)', padding: 16, borderRadius: 16, border: '1px solid var(--color-border)', minWidth: 450 }}>
+          <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--color-text-primary)' }}>
+            {msg.content}
+          </div>
+          <div style={{ background: 'var(--color-bg-input)', borderRadius: 12, padding: 16, marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileOutlined style={{ fontSize: 20, color: '#fff' }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text-primary)' }}>
+                  {ds.name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  {ds.description}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ background: 'var(--color-bg-card)', padding: '8px 12px', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>基因数量</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-accent)' }}>{ds.gene_count}</div>
+              </div>
+              <div style={{ background: 'var(--color-bg-card)', padding: '8px 12px', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>样本数量</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-accent)' }}>{ds.sample_count}</div>
+              </div>
+              <div style={{ background: 'var(--color-bg-card)', padding: '8px 12px', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>对照组</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                  {ds.groups?.control?.join(', ') || 'control'}
+                </div>
+              </div>
+              <div style={{ background: 'var(--color-bg-card)', padding: '8px 12px', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>处理组</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                  {ds.groups?.treatment?.join(', ') || 'treatment'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // 进度卡片（当有 analysisResult 时显示结果卡片）
+    if (msg.type === 'progress' && msg.progress) {
+      return (
+        <>
+          <AnalysisProgress progress={msg.progress} isAnalyzing={!msg.analysisResult} />
+          {msg.analysisResult && (
+            <div style={{ marginTop: 16 }}>
+              <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
+            </div>
+          )}
+        </>
+      )
+    }
+
+    // 分析结果卡片
+    if ((msg.type === 'result' || msg.type === 'analysis') && msg.analysisResult) {
+      return <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
+    }
+
+    // 普通文本消息
+    return (
+      <div style={{
+        background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)',
+        color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)',
+        padding: '12px 16px',
+        borderRadius: 16,
+        lineHeight: 1.6
+      }}>
+        {msg.content}
+      </div>
+    )
   }
 
   // 删除会话
@@ -418,55 +697,15 @@ export default function ChatPage() {
       <Content style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: 0 }}>
         <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-        {/* 数据集选择弹窗 */}
-        <Modal
-          title={<><FileOutlined style={{ marginRight: 8 }} />请选择要分析的数据集</>}
-          open={datasetModalOpen}
-          onCancel={() => { setDatasetModalOpen(false); setPendingAnalysisMsg('') }}
-          footer={null}
-          width={600}
-          centered
-        >
-          <div style={{ marginBottom: 16, color: 'var(--color-text-secondary)' }}>
-            请从以下数据集中选择一个进行差异表达分析：
-          </div>
-          <Radio.Group style={{ width: '100%' }}>
-            <List
-              dataSource={datasets}
-              renderItem={(dataset) => (
-                <List.Item
-                  style={{
-                    padding: '16px',
-                    marginBottom: 8,
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 8,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onClick={() => handleDatasetSelect(dataset.id)}
-                >
-                  <Radio value={dataset.id} style={{ width: '100%' }}>
-                    <div style={{ marginLeft: 8 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{dataset.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                        {dataset.description}
-                      </div>
-                      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12 }}>
-                        <Tag color="blue">基因: {dataset.gene_count}</Tag>
-                        <Tag color="green">样本: {dataset.sample_count}</Tag>
-                        <Tag color="purple">对照组: {dataset.groups?.control?.join(', ') || 'control'}</Tag>
-                        <Tag color="red">处理组: {dataset.groups?.treatment?.join(', ') || 'treatment'}</Tag>
-                      </div>
-                    </div>
-                  </Radio>
-                </List.Item>
-              )}
-            />
-          </Radio.Group>
-          <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--color-bg-card)', borderRadius: 8, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            💡 提示：分析将同时使用传统统计工具（t检验/DESeq2）和大语言模型进行双轨分析对比
-          </div>
-        </Modal>
+        {/* 基因详情弹窗 */}
+        {selectedResult && (
+          <GeneDetailModal
+            geneId={selectedGene}
+            result={selectedResult}
+            open={geneModalOpen}
+            onClose={() => setGeneModalOpen(false)}
+          />
+        )}
 
         {/* 顶部栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
@@ -567,13 +806,13 @@ export default function ChatPage() {
               </p>
             </div>
           ) : (
-            <div style={{ maxWidth: 800, width: '100%', margin: '0 auto', padding: '0 24px' }}>
+            <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
               {currentSession?.messages.map(msg => (
                 <div key={msg.id} style={{ marginBottom: 24, display: 'flex', gap: 16, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {msg.role !== 'user' && <Avatar icon={<RobotOutlined />} style={{ background: 'var(--color-bg-dark)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }} />}
-                  <div style={{ maxWidth: '70%' }}>
+                  <div style={{ maxWidth: '90%' }}>
                     {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>天枢</div>}
-                    {msg.isLoading ? <Spin /> : msg.type === 'progress' && msg.progress ? <AnalysisProgress progress={msg.progress} isAnalyzing={msg.isLoading || false} /> : msg.type === 'analysis' && msg.analysisResult ? <DualTrackResultCard result={msg.analysisResult} /> : msg.type === 'result' && msg.analysisResult ? <DualTrackResultCard result={msg.analysisResult} /> : <div style={{ background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)', color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)', padding: '12px 16px', borderRadius: 16, lineHeight: 1.6 }}>{msg.content}</div>}
+                    {renderMessageContent(msg)}
                   </div>
                   {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
                 </div>
@@ -593,7 +832,7 @@ export default function ChatPage() {
             display: 'flex',
             alignItems: hasMessages ? 'center' : 'flex-start',
             gap: 12,
-            maxWidth: 800,
+            maxWidth: 1050,
             margin: '0 auto',
             boxShadow: 'var(--shadow-card)',
           }}>
