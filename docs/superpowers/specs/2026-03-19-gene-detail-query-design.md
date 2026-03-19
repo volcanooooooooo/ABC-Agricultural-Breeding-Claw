@@ -53,17 +53,25 @@
 
 ### 3.2 展示优先级与去重规则
 1. **去重逻辑**：精确匹配（gene_ids 包含目标基因）和关键词匹配（hint.keyword 包含目标基因）可能产生重复，以 `id` 字段去重
-2. **排序规则**：按 `frequency` 降序排列，频率越高的反馈越靠前
-3. **类型优先级**：warning 类型反馈优先展示
+2. **排序规则**：先按类型排序（warning 类型优先），再按 `frequency` 降序
+3. **类型优先级**：
+   - `hint_type === 'warning'` 的反馈优先展示
+   - 原始 feedback 中 `rating === 'negative'` 的映射为 warning 类型
 4. **数量限制**：最多显示 3 条
 
 ```typescript
-// 合并去重，优先展示 warning，按 frequency 降序
+// 合并去重，先按 warning 类型排序，再按 frequency 降序
 const combined = [...warningsFromHints, ...negativeGeneFeedbacks]
 const unique = combined.filter((item, idx, arr) =>
   arr.findIndex(t => t.id === item.id) === idx
 )
-const sorted = unique.sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+const sorted = unique.sort((a, b) => {
+  // warning 类型优先
+  if (a.hint_type === 'warning' && b.hint_type !== 'warning') return -1
+  if (a.hint_type !== 'warning' && b.hint_type === 'warning') return 1
+  // 同类型按 frequency 降序
+  return (b.frequency || 0) - (a.frequency || 0)
+})
 setFeedbackWarnings(sorted.slice(0, 3))
 ```
 
@@ -179,12 +187,18 @@ const fetchGeneFeedback = async (geneId: string) => {
         frequency: 1 // 原始反馈 frequency 默认为 1
       }))
 
-    // 4. 合并 + 去重（以 id 去重）+ 排序 + 限制数量
+    // 4. 合并 + 去重（以 id 去重）+ 排序（warning优先，再按frequency）+ 限制数量
     const combined = [...warningsFromHints, ...negativeGeneFeedbacks]
     const unique = combined.filter((item, idx, arr) =>
       arr.findIndex(t => t.id === item.id) === idx
     )
-    const sorted = unique.sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+    const sorted = unique.sort((a, b) => {
+      // warning 类型优先
+      if (a.hint_type === 'warning' && b.hint_type !== 'warning') return -1
+      if (a.hint_type !== 'warning' && b.hint_type === 'warning') return 1
+      // 同类型按 frequency 降序
+      return (b.frequency || 0) - (a.frequency || 0)
+    })
     setFeedbackWarnings(sorted.slice(0, 3))
   } catch (e) {
     console.error('Failed to fetch gene feedback:', e)
@@ -242,7 +256,7 @@ const fetchGeneFeedback = async (geneId: string) => {
 | `src/components/GeneDetailModal.tsx` | 修改 | 新增反馈区域和查询逻辑 |
 | `src/pages/ChatPage.tsx` | 修改 | 自然语言识别基因查询意图 |
 | `src/api/client.ts` | 无变更 | 复用现有 API |
-| `src/hooks/useFeedbackHints.ts` | 无变更 | 复用现有 Hook |
+| `src/hooks/useFeedbackHints.ts` | 无变更 | 该 Hook 仅支持关键词匹配，本需求需要精确+模糊组合匹配，故不适用 |
 
 ---
 
