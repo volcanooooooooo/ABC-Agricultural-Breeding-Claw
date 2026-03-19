@@ -1,7 +1,11 @@
 from typing import List, Dict, Any, Optional
+import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import stats
+
+ANALYSIS_RESULTS_DIR = Path("backend/data/analysis_results")
 
 class AnalysisService:
     """数据分析服务"""
@@ -158,6 +162,64 @@ class AnalysisService:
 
         return top_df.to_dict(orient="records")
 
+    def _ensure_results_dir(self):
+        """确保结果目录存在"""
+        ANALYSIS_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def save_result(self, job_id: str, result: "AnalysisResult") -> None:
+        """保存分析结果到 JSON 文件"""
+        self._ensure_results_dir()
+        file_path = ANALYSIS_RESULTS_DIR / f"{job_id}.json"
+
+        # 原子写入：先写临时文件，再 rename
+        temp_path = file_path.with_suffix('.tmp')
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            json.dump(result.model_dump(), f, ensure_ascii=False, indent=2)
+        temp_path.replace(file_path)
+
+    def get_results(self, gene_id: Optional[str] = None) -> List[dict]:
+        """获取分析结果列表，支持按基因筛选"""
+        self._ensure_results_dir()
+
+        if not gene_id:
+            # 返回所有结果（按时间倒序）
+            results = []
+            for file_path in ANALYSIS_RESULTS_DIR.glob("job_*.json"):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        result = json.load(f)
+                        results.append(result)
+                except (json.JSONDecodeError, IOError):
+                    continue
+            return sorted(results, key=lambda x: x.get('created_at', ''), reverse=True)
+        else:
+            # 按基因筛选：需要关联 feedback 表
+            from app.services.feedback_service import feedback_service
+            feedbacks = feedback_service.get_by_gene(gene_id)
+            analysis_ids = list(set(fb.analysis_id for fb in feedbacks))
+
+            results = []
+            for job_id in analysis_ids:
+                file_path = ANALYSIS_RESULTS_DIR / f"{job_id}.json"
+                if file_path.exists():
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            results.append(json.load(f))
+                    except (json.JSONDecodeError, IOError):
+                        continue
+            return sorted(results, key=lambda x: x.get('created_at', ''), reverse=True)
+
+    def get_result(self, job_id: str) -> Optional[dict]:
+        """获取单个分析结果"""
+        file_path = ANALYSIS_RESULTS_DIR / f"{job_id}.json"
+        if not file_path.exists():
+            return None
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+
 
 # 全局单例
 analysis_service = AnalysisService()
@@ -299,6 +361,8 @@ async def run_llm_analysis(
     content = llm_result.get("content", "")
 
     significant_genes = []
+    readable_reasoning = ""
+
     try:
         json_match = re.search(r'\{[\s\S]*\}', content)
         if json_match:
@@ -319,13 +383,30 @@ async def run_llm_analysis(
                     expression_change="down",
                     reason="LLM判断下调"
                 ))
+
+            # 生成可读的 Markdown 格式 reasoning
+            reasoning_parts = []
+
+            # 分析结论
+            if up_genes:
+                reasoning_parts.append(f"**上调基因**: {', '.join(up_genes)}")
+            if down_genes:
+                reasoning_parts.append(f"**下调基因**: {', '.join(down_genes)}")
+
+            # 原始推理过程（如果存在）
+            raw_reasoning = result.get("reasoning", "")
+            if raw_reasoning:
+                reasoning_parts.append(f"\n**分析推理**:\n{raw_reasoning}")
+
+            readable_reasoning = "\n\n".join(reasoning_parts) if reasoning_parts else "未返回有效分析结果"
     except Exception:
-        pass
+        # JSON解析失败，直接用原始内容但清理格式
+        readable_reasoning = content[:500] if content else "LLM未返回有效分析"
 
     return LLMResult(
         model=model,
         significant_genes=significant_genes,
-        reasoning=content[:500],
+        reasoning=readable_reasoning,
         execution_time=execution_time
     )
 
