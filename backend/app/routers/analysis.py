@@ -379,6 +379,8 @@ async def stream_analysis(job_id: str):
                 id=job_id,
                 dataset_id=dataset.id,
                 dataset_name=dataset.name,
+                group_control=request.group_control,
+                group_treatment=request.group_treatment,
                 tool_result=tool_result,
                 llm_result=llm_result,
                 consistency=consistency,

@@ -37,6 +37,8 @@ class AnalysisResult(BaseModel):
     id: str
     dataset_id: str
     dataset_name: str
+    group_control: str
+    group_treatment: str
     tool_result: ToolResult
     llm_result: LLMResult
     consistency: ConsistencyInfo
