@@ -57,27 +57,35 @@ export interface ChatResponse {
   references?: string[]
 }
 
-// Ontology types
+// Ontology types - 匹配后端 Pydantic 模型
+export type OntologyNodeType =
+  | 'Dataset' | 'Sample' | 'Gene' | 'Measurement'
+  | 'ProcessStep' | 'Tool' | 'Result' | 'Conclusion'
+  | 'genotype' | 'trait' | 'metabolome' | 'environment' | 'method'
+
 export interface OntologyNode {
   id: string
-  label: string
-  node_type: string
+  type: OntologyNodeType
+  name: string
   properties?: Record<string, any>
+  created_at?: string
+  updated_at?: string
 }
 
 export interface OntologyEdge {
-  id: string
   source: string
   target: string
-  relation_type: string
+  relation: string
 }
 
-export interface Ontology {
-  id: string
-  name: string
-  description?: string
+export interface OntologyGraph {
   nodes: OntologyNode[]
   edges: OntologyEdge[]
+}
+
+export interface OntologyListResponse {
+  total: number
+  items: OntologyNode[]
 }
 
 // Analysis types
@@ -119,20 +127,33 @@ export const chatApi = {
     api.delete<ApiResponse<void>>('/chat/history'),
 }
 
-// Ontology API
+// Ontology API - 匹配后端 /api/ontology 路由
 export const ontologyApi = {
-  getAll: () =>
-    api.get<ApiResponse<Ontology[]>>('/ontology'),
-  getById: (id: string) =>
-    api.get<ApiResponse<Ontology>>(`/ontology/${id}`),
-  create: (data: Partial<Ontology>) =>
-    api.post<ApiResponse<Ontology>>('/ontology', data),
-  update: (id: string, data: Partial<Ontology>) =>
-    api.put<ApiResponse<Ontology>>(`/ontology/${id}`, data),
-  delete: (id: string) =>
-    api.delete<ApiResponse<void>>(`/ontology/${id}`),
-  searchNodes: (query: string) =>
-    api.get<ApiResponse<OntologyNode[]>>('/ontology/nodes/search', { params: { q: query } }),
+  // 获取完整图谱
+  getGraph: () =>
+    api.get<OntologyGraph>('/ontology/'),
+
+  // 获取节点列表（支持 type 过滤）
+  getNodes: (type?: OntologyNodeType) =>
+    api.get<OntologyListResponse>('/ontology/nodes', {
+      params: type ? { type } : undefined
+    }),
+
+  // 获取单个节点
+  getNode: (nodeId: string) =>
+    api.get<OntologyNode>(`/ontology/nodes/${nodeId}`),
+
+  // 获取边列表（支持 source/target 过滤）
+  getEdges: (params?: { source?: string; target?: string }) =>
+    api.get<{ total: number; items: OntologyEdge[] }>('/ontology/edges', { params }),
+
+  // 获取节点的所有关联
+  getNodeRelations: (nodeId: string) =>
+    api.get<{ incoming: OntologyEdge[]; outgoing: OntologyEdge[] }>(`/ontology/nodes/${nodeId}/relations`),
+
+  // 搜索节点
+  searchNodes: (keyword: string) =>
+    api.get<{ total: number; items: OntologyNode[] }>('/ontology/search', { params: { keyword } }),
 }
 
 // Analysis API
@@ -145,6 +166,9 @@ export const analysisApi = {
     api.get<ApiResponse<AnalysisResult[]>>('/analysis/results'),
   getResultById: (id: string) =>
     api.get<ApiResponse<AnalysisResult>>(`/analysis/results/${id}`),
+  // 新增：按基因获取分析结果列表
+  getResultsByGene: (geneId: string) =>
+    api.get<ApiResponse<AnalysisResultSummary[]>>('/analysis/results', { params: { gene_id: geneId } }),
   // 扩展方法 - 双轨分析
   compare: (data: CompareRequest) => api.post<ApiResponse<CompareResponse>>('/analysis/compare', data),
   getResult: (id: string) => api.get<ApiResponse<AnalysisResult>>(`/analysis/results/${id}`),
@@ -204,6 +228,15 @@ export interface AnalysisResult {
   llm_result: LLMResult
   consistency: ConsistencyInfo
   created_at: string
+}
+
+export interface AnalysisResultSummary {
+  id: string
+  dataset_id: string
+  dataset_name: string
+  created_at: string
+  feedback_count: number
+  avg_rating: number
 }
 
 export interface CompareRequest {
