@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Modal, Tag, Divider, Input, Button, message, Spin } from 'antd'
+import { Modal, Tag, Divider, Input, Button, message, Spin, Empty, Card } from 'antd'
 import {
   ExclamationCircleOutlined,
   ThunderboltOutlined,
   RobotOutlined,
   ArrowUpOutlined,
   ArrowDownOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons'
-import { AnalysisResult, feedbackApi, api } from '../api/client'
+import { AnalysisResult, AnalysisResultSummary, feedbackApi, analysisApi, api } from '../api/client'
 
 interface FeedbackHint {
   id: number
@@ -45,6 +46,11 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
   const [submitting, setSubmitting] = useState(false)
   const [feedbackWarnings, setFeedbackWarnings] = useState<FeedbackHint[]>([])
   const [loadingFeedback, setLoadingFeedback] = useState(false)
+  const [historyAnalyses, setHistoryAnalyses] = useState<AnalysisResultSummary[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
+  const [selectedHistoryResult, setSelectedHistoryResult] = useState<AnalysisResult | null>(null)
+  const [loadingHistoryDetail, setLoadingHistoryDetail] = useState(false)
 
   // 从结果中提取基因数据
   const extractGeneData = (geneId: string, source: 'tool' | 'llm'): GeneData | null => {
@@ -120,10 +126,38 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
     }
   }
 
+  const fetchHistoryAnalyses = async (geneId: string) => {
+  setLoadingHistory(true)
+  try {
+    const res = await analysisApi.getResultsByGene(geneId)
+    setHistoryAnalyses(res.data?.data || [])
+  } catch (e) {
+    console.error('Failed to fetch history analyses:', e)
+    setHistoryAnalyses([])
+  } finally {
+    setLoadingHistory(false)
+  }
+}
+
+const handleViewHistoryDetail = async (jobId: string) => {
+  setSelectedHistoryId(jobId)
+  setLoadingHistoryDetail(true)
+  try {
+    const res = await analysisApi.getResult(jobId)
+    setSelectedHistoryResult(res.data?.data || null)
+  } catch (e) {
+    console.error('Failed to fetch analysis detail:', e)
+    setSelectedHistoryResult(null)
+  } finally {
+    setLoadingHistoryDetail(false)
+  }
+}
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && geneId) {
       fetchGeneFeedback(geneId)
+      fetchHistoryAnalyses(geneId)
     } else {
       setFeedbackWarnings([])
     }
@@ -132,12 +166,24 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
   const handleSubmitAnnotation = async () => {
     if (!annotation.trim()) return
     setSubmitting(true)
-    // TODO: 调用后端API保存注释
-    setTimeout(() => {
-      message.success('注释已记录')
+    try {
+      await feedbackApi.create({
+        analysis_id: result.id,
+        track: 'tool',
+        rating: 'positive',
+        comment: annotation.trim(),
+        gene_ids: [geneId]
+      })
+      message.success('注释已保存')
       setAnnotation('')
+      // 刷新历史分析
+      fetchHistoryAnalyses(geneId)
+    } catch (e) {
+      console.error('Failed to save annotation:', e)
+      message.error('保存失败')
+    } finally {
       setSubmitting(false)
-    }, 500)
+    }
   }
 
   return (
@@ -310,6 +356,83 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
           </Button>
         </div>
       </div>
+
+      {/* 历史分析 Tab */}
+      {(historyAnalyses.length > 0 || loadingHistory) && (
+        <div style={{ marginTop: 16 }}>
+          <Divider style={{ margin: '12px 0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <HistoryOutlined style={{ color: '#1890ff' }} />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>历史分析</span>
+            {loadingHistory && <Spin size="small" />}
+          </div>
+
+          {historyAnalyses.length === 0 && !loadingHistory ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无历史分析" />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {historyAnalyses.map((analysis) => (
+                <Card
+                  key={analysis.id}
+                  size="small"
+                  hoverable
+                  onClick={() => handleViewHistoryDetail(analysis.id)}
+                  style={{
+                    background: selectedHistoryId === analysis.id ? '#e6f7ff' : 'var(--color-bg-input)',
+                    border: selectedHistoryId === analysis.id ? '1px solid #1890ff' : '1px solid var(--color-border)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{analysis.dataset_name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {new Date(analysis.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 12 }}>
+                        <span style={{ color: '#52c41a' }}>✓ {analysis.feedback_count}</span> 条反馈
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        评分: {analysis.avg_rating > 0 ? `${(analysis.avg_rating * 100).toFixed(0)}%` : '无'}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* 展开的历史分析详情 */}
+          {selectedHistoryId && selectedHistoryResult && (
+            <Card
+              size="small"
+              style={{ marginTop: 12, background: '#fafafa' }}
+              title={<span style={{ fontSize: 12 }}>分析详情</span>}
+            >
+              <div style={{ fontSize: 12 }}>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>工具轨显著基因:</strong> {selectedHistoryResult.tool_result.significant_genes.length} 个
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>LLM轨显著基因:</strong> {selectedHistoryResult.llm_result.significant_genes.length} 个
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>一致性:</strong> 重叠 {(selectedHistoryResult.consistency.overlap || []).length} 个基因
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>工具轨推理:</strong>
+                  <div style={{ color: 'var(--color-text-muted)', marginTop: 4, whiteSpace: 'pre-wrap' }}>
+                    {selectedHistoryResult.llm_result.reasoning?.slice(0, 200)}
+                    {(selectedHistoryResult.llm_result.reasoning?.length || 0) > 200 ? '...' : ''}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+          {selectedHistoryId && loadingHistoryDetail && <Spin style={{ marginTop: 8 }} />}
+        </div>
+      )}
     </Modal>
   )
 }
