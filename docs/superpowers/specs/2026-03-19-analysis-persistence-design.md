@@ -15,11 +15,12 @@
 ## 2. 架构设计
 
 ### 存储策略
-| 数据类型 | 存储方式 | 文件/表 |
-|---------|---------|---------|
-| 分析结果 | JSON 文件 | `backend/data/analysis_results/{job_id}.json` |
-| 分析反馈注释 | 复用现有 feedback.json | `backend/data/feedback.json` |
-| 基因详情注释 | 复用现有 feedback.json | `backend/data/feedback.json` |
+| 数据类型 | 存储方式 | 文件/表 | 说明 |
+|---------|---------|---------|------|
+| 分析结果 | JSON 文件 | `backend/data/analysis_results/{job_id}.json` | 完整分析数据 |
+| 分析反馈注释 | JSON 文件 | `backend/data/feedback.json` | 权威存储，包含完整 feedback 记录 |
+| 基因详情注释 | JSON 文件 | `backend/data/feedback.json` | 复用 feedback 存储结构 |
+| Feedback 关键词索引 | SQLite | `feedback_hints` 表 | 辅助表，用于关键词快速检索，非权威数据 |
 
 ### 核心逻辑
 1. **分析完成时**：SSE 流返回结果后，后端保存完整结果到 JSON 文件
@@ -63,13 +64,22 @@
   "rating": "positive",   // "positive" | "negative"
   "comment": "这个分析结果很准确",
   "gene_ids": ["gene1", "gene2"],  // 关联的基因
-  "created_by": null,
+  "created_by": null,      // 预留字段，当前为 null（匿名反馈）
   "id": "fb_xxx",
   "created_at": "2026-03-19T10:30:00Z"
 }
 ```
 
-**注意**：`gene_ids` 字段已存在，用于关联基因与分析结果
+**字段说明：**
+- `rating`: positive=1.0, negative=0.0，用于计算 avg_rating
+- `created_by`: 当前固定为 null，表示匿名反馈（后续可扩展用户认证）
+- `gene_ids`: 关联的基因 ID 列表，用于按基因查询历史分析
+
+**avg_rating 计算方式：**
+```python
+# positive = 1.0, negative = 0.0
+avg_rating = sum(rating_values) / len(rating_values)
+```
 
 ## 4. API 设计
 
@@ -190,6 +200,11 @@ async def stream_analysis(job_id: str):
 - 点击展开查看完整分析结果
 - 显示该分析结果关联的注释
 
+**UI 状态处理：**
+- Loading：显示加载动画
+- Empty（无历史记录）：显示空状态提示
+- Error：显示错误提示，提供重试按钮
+
 ### 6.2 DualTrackResultCard.tsx
 - 已有的 FeedbackWidget 保持不变
 - 确保提交反馈时正确传递 gene_ids
@@ -209,9 +224,9 @@ export const analysisApi = {
 backend/
 ├── data/
 │   ├── feedback.json           # 已有，反馈存储
-│   └── analysis_results/       # 新增，分析结果存储
-│       ├── job_xxx.json
-│       └── job_yyy.json
+│   ├── analysis_results/       # 新增，分析结果存储
+│   │   └── {job_id}.json       # 文件名格式：job_{hex}.json
+│   └── breeding.db             # SQLite 数据库
 ├── app/
 │   ├── services/
 │   │   ├── analysis_service.py # 修改，添加 save/get 方法
@@ -220,6 +235,11 @@ backend/
 │       ├── analysis.py         # 修改，添加新端点
 │       └── feedback.py        # 可能需要修改（gene_id 筛选）
 ```
+
+**文件命名约定：**
+- 分析结果文件：`{job_id}.json`，如 `job_2f83b371.json`
+- 目录 `analysis_results/` 如果不存在需要自动创建
+- 文件大小预估：单次分析结果约 10KB-100KB（取决于数据集规模）
 
 ## 8. 实现步骤
 
@@ -245,6 +265,13 @@ backend/
 
 ## 9. 注意事项
 
-- 分析结果 JSON 文件定期清理或限制数量（后续迭代）
-- 大数据集的分析结果可能较大，考虑异步保存不阻塞 SSE 流
-- 前期先验证数据流通，错误处理可后续完善
+### 错误处理
+- 文件不存在：返回 404 或空列表
+- JSON 解析失败：记录日志，返回错误信息
+- 目录创建失败：抛出异常（不应发生）
+- 并发写入：JSON 文件写入使用锁或原子写（写临时文件再 rename）
+
+### 清理策略（后续迭代）
+- 保留策略：待定（如"保留最近 100 条"或"保留 30 天内"）
+- 触发方式：待定（如启动时检查、或定时任务）
+- **本期不做**：清理逻辑本期不实现，仅预留扩展点
