@@ -7,7 +7,7 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
 } from '@ant-design/icons'
-import { AnalysisResult, GeneInfo, feedbackApi, api } from '../api/client'
+import { AnalysisResult, feedbackApi, api } from '../api/client'
 
 interface FeedbackHint {
   id: number
@@ -34,6 +34,11 @@ interface GeneData {
   control_values?: number[]
   treatment_values?: number[]
 }
+
+// 反馈查询配置
+const FEEDBACK_HINTS_LIMIT = 10
+const FEEDBACK_DISPLAY_LIMIT = 3
+const FEEDBACK_RETRY_DELAY_MS = 5000
 
 export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = true }: GeneDetailModalProps) {
   const [annotation, setAnnotation] = useState('')
@@ -70,7 +75,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
 
       // 2. 关键词匹配：调用 hints API
       const hintRes = await api.get<{ data: FeedbackHint[] }>('/feedbacks/hints', {
-        params: { keyword: geneId, limit: 10 }
+        params: { keyword: geneId, limit: FEEDBACK_HINTS_LIMIT }
       })
       const hints = hintRes.data?.data || []
       const warningsFromHints = hints.filter((h: FeedbackHint) => h.hint_type === 'warning')
@@ -97,7 +102,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
         if (a.hint_type !== 'warning' && b.hint_type === 'warning') return 1
         return (b.frequency || 0) - (a.frequency || 0)
       })
-      setFeedbackWarnings(sorted.slice(0, 3))
+      setFeedbackWarnings(sorted.slice(0, FEEDBACK_DISPLAY_LIMIT))
     } catch (e) {
       console.error('Failed to fetch gene feedback:', e)
       // 网络超时或其他错误，5秒后重试一次
@@ -105,7 +110,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
         isRetrying = true
         setTimeout(() => {
           fetchGeneFeedback(geneId, retryCount + 1)
-        }, 5000)
+        }, FEEDBACK_RETRY_DELAY_MS)
         return // 等待重试，不关闭loading
       }
     } finally {
@@ -115,6 +120,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && geneId) {
       fetchGeneFeedback(geneId)
