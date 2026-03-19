@@ -281,7 +281,7 @@ async def get_analysis_results(gene_id: Optional[str] = None):
             "avg_rating": round(avg_rating, 2)
         })
 
-    return summary_results
+    return {"status": "success", "data": summary_results}
 
 
 @router.get("/results/{job_id}")
