@@ -104,6 +104,15 @@ export interface AnalysisResult {
   created_at: string
 }
 
+export interface AnalysisResultSummary {
+  id: string
+  dataset_id: string
+  dataset_name: string
+  created_at: string
+  feedback_count: number
+  avg_rating: number
+}
+
 // Settings types
 export interface Settings {
   llm_provider: string
@@ -228,15 +237,6 @@ export interface AnalysisResult {
   llm_result: LLMResult
   consistency: ConsistencyInfo
   created_at: string
-}
-
-export interface AnalysisResultSummary {
-  id: string
-  dataset_id: string
-  dataset_name: string
-  created_at: string
-  feedback_count: number
-  avg_rating: number
 }
 
 export interface CompareRequest {
