@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.services.analysis_service import analysis_service
 from app.services.dataset_service import dataset_service
+from app.services.feedback_service import feedback_service
 from app.services.analysis_service import (
     run_tool_analysis, run_llm_analysis, calculate_consistency
 )
@@ -260,7 +261,6 @@ async def get_analysis_results(gene_id: Optional[str] = None):
     results = analysis_service.get_results(gene_id)
 
     # 计算每个结果的反馈统计
-    from app.services.feedback_service import feedback_service
     all_feedbacks = feedback_service.get_all()
 
     summary_results = []
