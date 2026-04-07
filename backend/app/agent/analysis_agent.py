@@ -1,154 +1,162 @@
-"""LangChain ReAct Agent for differential expression analysis."""
+"""Native Agent Loop for ABC - inspired by shareAI-lab/learn-claude-code.
+
+Replaces LangChain ReAct Agent with a direct Agent Loop:
+    while stop_reason == "tool_use":
+        response = LLM(messages, tools)
+        dispatch tools
+        append results
+        continue
+"""
 
 import json
-import re
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-from app.tools.differential import differential_expression_analysis
+from openai import OpenAI
 
+from app.config import settings
+from app.tools.differential import (
+    DIFFERENTIAL_ANALYSIS_SCHEMA,
+    differential_expression_analysis,
+)
 
-def parse_analysis_command(user_input: str) -> Dict[str, Any]:
-    """Parse analysis command or natural language into tool parameters.
+# ── 工具注册表：名称 → 可调用函数 ──────────────────────────────────────────
+TOOL_HANDLERS = {
+    "differential_expression_analysis": lambda **kw: differential_expression_analysis(**kw),
+}
 
-    Supports formats:
-    - /analyze --control WT --treatment osbzip23
-    - /diff --control WT --treatment osbzip23 --pvalue 0.01
-    - Natural language like "分析 WT 和 osbzip23 的差异"
-    """
-    params = {
-        "dataset_path": "backend/data/datasets/GSE242459_Count_matrix.txt",
-        "control_group": "WT",
-        "treatment_group": "osbzip23",
-        "pvalue_threshold": 0.05,
-        "log2fc_threshold": 1.0
-    }
+# ── LLM function calling 工具描述列表 ─────────────────────────────────────
+TOOLS = [DIFFERENTIAL_ANALYSIS_SCHEMA]
 
-    # If it's a command, parse arguments
-    if user_input.strip().startswith("/"):
-        # Parse --key value patterns
-        control_match = re.search(r'--control\s+(\w+)', user_input, re.IGNORECASE)
-        treatment_match = re.search(r'--treatment\s+(\w+)', user_input, re.IGNORECASE)
-        pvalue_match = re.search(r'--pvalue\s+([\d.]+)', user_input, re.IGNORECASE)
-        log2fc_match = re.search(r'--log2fc\s+([\d.]+)', user_input, re.IGNORECASE)
+# ── 系统提示 ──────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
+你擅长基因表达数据分析，可以调用工具进行差异表达分析。
 
-        if control_match:
-            params["control_group"] = control_match.group(1)
-        if treatment_match:
-            params["treatment_group"] = treatment_match.group(1)
-        if pvalue_match:
-            params["pvalue_threshold"] = float(pvalue_match.group(1))
-        if log2fc_match:
-            params["log2fc_threshold"] = float(log2fc_match.group(1))
-    else:
-        # Natural language parsing
-        # Extract control/treatment groups
-        wt_match = re.search(r'(?:WT|wild.?type|对照)', user_input, re.IGNORECASE)
-        treatment_match = re.search(r'(osbzip23|treatment|处理)', user_input, re.IGNORECASE)
+当用户请求分析时：
+1. 理解用户意图，确定对照组和处理组
+2. 调用 differential_expression_analysis 工具
+3. 用中文解读分析结果，包括：显著差异基因数量、上调/下调情况、关键基因
 
-        if wt_match and treatment_match:
-            # Try to determine which is control and which is treatment
-            text_lower = user_input.lower()
-            if text_lower.index('wt') < text_lower.index('osbzip23') or \
-               text_lower.index('wild') < text_lower.index('osbzip23'):
-                params["control_group"] = "WT"
-                params["treatment_group"] = "osbzip23"
+数据集信息：
+- 默认数据集：GSE242459（水稻基因表达数据）
+- 对照组（WT）：DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
+- 处理组（osbzip23）：DS_osbzip23_rep1, DS_osbzip23_rep2
 
-        # Check for threshold values
-        pvalue_match = re.search(r'p[.-]?value\s*[<=]?\s*([\d.]+)', user_input, re.IGNORECASE)
-        if pvalue_match:
-            params["pvalue_threshold"] = float(pvalue_match.group(1))
-
-    return params
+命令格式示例：
+- /analyze --control WT --treatment osbzip23
+- 分析 WT 和 osbzip23 的差异表达基因"""
 
 
-def format_analysis_result(result_json: str) -> str:
-    """Format the analysis JSON result into a readable message."""
+def _get_client() -> OpenAI:
+    """获取千问 OpenAI 兼容客户端。"""
+    return OpenAI(
+        api_key=settings.qwen_api_key,
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+
+def _dispatch_tool(name: str, arguments: Dict[str, Any]) -> str:
+    """分发工具调用，返回结果字符串。"""
+    handler = TOOL_HANDLERS.get(name)
+    if not handler:
+        return json.dumps({"error": f"Unknown tool: {name}"})
     try:
-        data = json.loads(result_json)
-
-        if "error" in data:
-            return f"分析错误: {data['error']}"
-
-        summary = data.get("summary", {})
-        genes = data.get("significant_genes", [])
-
-        output = []
-        output.append("=" * 60)
-        output.append("ABC 差异表达分析结果")
-        output.append("=" * 60)
-        output.append(f"数据集: GSE242459_Count_matrix.txt")
-        output.append(f"对照组 ({summary.get('control_group', 'WT')}): {', '.join(summary.get('control_samples', []))}")
-        output.append(f"处理组 ({summary.get('treatment_group', 'treatment')}): {', '.join(summary.get('treatment_samples', []))}")
-        output.append(f"P值阈值: {summary.get('pvalue_threshold', 0.05)}")
-        output.append(f"log2FC阈值: {summary.get('log2fc_threshold', 1.0)}")
-        output.append("")
-        output.append(f"总测试基因数: {summary.get('total_genes_tested', 0)}")
-        output.append(f"显著差异基因数: {summary.get('significant_genes_count', 0)}")
-        output.append(f"  - 上调基因 (Up): {summary.get('upregulated_count', 0)}")
-        output.append(f"  - 下调基因 (Down): {summary.get('downregulated_count', 0)}")
-        output.append("")
-        output.append("=" * 60)
-        output.append("显著差异基因列表 (Top 20 by |log2FC|)")
-        output.append("=" * 60)
-        output.append(f"{'Gene ID':<20} {'log2FC':>10} {'P-value':>12} {'变化':>8}")
-        output.append("-" * 60)
-
-        for gene in genes[:20]:
-            change = "Up" if gene.get("expression_change") == "up" else "Down"
-            output.append(
-                f"{gene.get('gene_id', ''):<20} "
-                f"{gene.get('log2fc', 0):>10.4f} "
-                f"{gene.get('pvalue', 0):>12.6f} "
-                f"{change:>8}"
-            )
-
-        if len(genes) > 20:
-            output.append(f"... 还有 {len(genes) - 20} 个基因")
-
-        # Add the JSON data for frontend parsing
-        output.append("")
-        output.append(f"<!-- ANALYSIS_DATA: {result_json} -->")
-
-        return "\n".join(output)
-
+        return handler(**arguments)
     except Exception as e:
-        return f"结果格式化失败: {str(e)}\n\n原始结果:\n{result_json}"
+        return json.dumps({"error": f"Tool execution failed: {str(e)}"})
+
+
+def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
+    """同步 Agent Loop：LLM → 工具调用 → 结果回传 → 循环。
+
+    Args:
+        messages: 对话历史（含 system prompt）
+        max_rounds: 最大循环轮数，防止死循环
+
+    Returns:
+        LLM 最终的文本回复
+    """
+    client = _get_client()
+
+    for _ in range(max_rounds):
+        response = client.chat.completions.create(
+            model=settings.qwen_model,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+        )
+
+        choice = response.choices[0]
+        assistant_msg = choice.message
+
+        # 将 assistant 回复追加到历史
+        messages.append({
+            "role": "assistant",
+            "content": assistant_msg.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in (assistant_msg.tool_calls or [])
+            ] or None,
+        })
+
+        # 如果没有工具调用，返回最终答案
+        if choice.finish_reason != "tool_calls" or not assistant_msg.tool_calls:
+            return assistant_msg.content or ""
+
+        # 执行所有工具调用，收集结果
+        for tool_call in assistant_msg.tool_calls:
+            name = tool_call.function.name
+            try:
+                arguments = json.loads(tool_call.function.arguments)
+            except json.JSONDecodeError:
+                arguments = {}
+
+            result = _dispatch_tool(name, arguments)
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+    # 超过最大轮数，返回最后一条 assistant 消息
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("content"):
+            return msg["content"]
+    return "分析超过最大轮数限制，请重试。"
 
 
 async def run_analysis(user_input: str) -> Dict[str, Any]:
-    """Run differential expression analysis based on user input.
+    """运行分析 Agent，处理用户输入。
 
     Args:
-        user_input: Command or natural language request for analysis
-            Examples:
-            - "/analyze --control WT --treatment osbzip23"
-            - "分析处理组osbzip23与对照组WT的差异表达基因"
+        user_input: 用户的自然语言或命令输入
 
     Returns:
-        Dict with keys:
-        - success: bool indicating if analysis completed
-        - output: str result from agent (formatted analysis results)
-        - error: str error message if failed
+        dict with keys:
+        - success: bool
+        - output: str（格式化结果）
+        - error: str or None
     """
-    try:
-        # Parse command/natural language into parameters
-        params = parse_analysis_command(user_input)
-
-        # Call the differential expression tool
-        result = differential_expression_analysis.invoke(params)
-
-        # Format the result
-        formatted_output = format_analysis_result(result)
-
-        return {
-            "success": True,
-            "output": formatted_output,
-            "error": None
-        }
-
-    except Exception as e:
+    if not settings.qwen_api_key:
         return {
             "success": False,
             "output": None,
-            "error": str(e)
+            "error": "QWEN_API_KEY 未配置，请在环境变量中设置",
         }
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_input},
+    ]
+
+    try:
+        output = _agent_loop(messages)
+        return {"success": True, "output": output, "error": None}
+    except Exception as e:
+        return {"success": False, "output": None, "error": str(e)}
