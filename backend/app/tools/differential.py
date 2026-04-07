@@ -10,7 +10,7 @@ from scipy import stats
 from langchain.tools import tool
 
 
-DEFAULT_DATASET_PATH = "backend/data/real_datasets/GSE242459_Count_matrix.txt"
+DEFAULT_DATASET_PATH = "backend/data/datasets/GSE242459_Count_matrix.txt"
 
 
 @tool
@@ -108,7 +108,8 @@ def differential_expression_analysis(
             t_stat, pvalue = stats.ttest_ind(control_values, treatment_values)
 
             # Determine expression change
-            if pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold:
+            is_significant = bool(pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold)
+            if is_significant:
                 expression_change = "up" if log2fc > 0 else "down"
                 significant_genes.append({
                     "gene_id": str(gene_id),
@@ -123,7 +124,7 @@ def differential_expression_analysis(
                 "log2fc": float(log2fc),
                 "neg_log10_pvalue": float(-np.log10(pvalue)) if pvalue > 0 else 0,
                 "pvalue": float(pvalue),
-                "significant": pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold
+                "significant": bool(pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold)
             })
 
         # Sort significant genes by absolute log2fc (descending) and take top 50
