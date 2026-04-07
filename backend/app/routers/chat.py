@@ -1,11 +1,9 @@
+import traceback
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-import re
 from app.services.llm_service import llm_service
 from app.services.ontology_service import ontology_service
-from app.services.dataset_service import dataset_service
-from app.models.analysis import CompareRequest
 from app.agent.analysis_agent import run_analysis
 
 # 延迟导入，避免循环依赖
@@ -37,59 +35,6 @@ def should_use_agent(message: str) -> bool:
         if kw.lower() in msg_lower:
             return True
     return False
-
-
-def extract_analysis_params(message: str) -> Optional[Dict[str, str]]:
-    """从消息中提取分析参数（数据集ID和分组）"""
-    # 获取所有数据集
-    try:
-        datasets = dataset_service.get_all()
-    except Exception as e:
-        print(f"[extract_analysis_params] Error getting datasets: {e}")
-        return None
-
-    if not datasets:
-        print("[extract_analysis_params] No datasets found")
-        return None
-
-    print(f"[extract_analysis_params] Found {len(datasets)} datasets")
-
-    dataset_id = None
-
-    # 首先尝试匹配 "ds_xxx" 格式
-    dataset_match = re.search(r'ds[_-]?(\w+)', message, re.IGNORECASE)
-    if dataset_match:
-        potential_id = f"ds_{dataset_match.group(1)}"
-        # 验证数据集是否存在
-        for ds in datasets:
-            if ds.id == potential_id:
-                dataset_id = potential_id
-                print(f"[extract_analysis_params] Found dataset by ID: {dataset_id}")
-                break
-
-    # 如果没找到，使用第一个数据集（默认）
-    if not dataset_id:
-        dataset_id = datasets[0].id
-        print(f"[extract_analysis_params] Using default dataset: {dataset_id}")
-
-    # 获取数据集的分组信息
-    dataset = dataset_service.get_by_id(dataset_id)
-    if not dataset or not dataset.groups:
-        print(f"[extract_analysis_params] Dataset {dataset_id} has no groups")
-        return None
-
-    print(f"[extract_analysis_params] Dataset groups: {list(dataset.groups.keys())}")
-
-    # 提取分组信息 - 默认使用数据集中定义的组
-    group_keys = list(dataset.groups.keys())
-    control_group = group_keys[0] if group_keys else "control"
-    treatment_group = group_keys[-1] if len(group_keys) > 1 else (group_keys[0] if group_keys else "treatment")
-
-    return {
-        "dataset_id": dataset_id,
-        "group_control": control_group,
-        "group_treatment": treatment_group
-    }
 
 
 class ChatMessage(BaseModel):
@@ -132,7 +77,6 @@ async def chat(request: ChatRequest):
         except HTTPException:
             raise
         except Exception as e:
-            import traceback
             print(f"Agent loop failed: {e}")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=str(e))
