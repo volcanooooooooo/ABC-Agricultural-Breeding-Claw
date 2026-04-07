@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect, Fragment } from 'react'
 import { Input, Button, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space } from 'antd'
 import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined, MessageOutlined, FileOutlined, ArrowRightOutlined, LogoutOutlined, SettingOutlined, UserSwitchOutlined } from '@ant-design/icons'
-import { chatApi, analysisApi, datasetApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
+import { chatApi, analysisApi, datasetApi, ontologyApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import AuthModal from '../components/AuthModal'
 import { AnalysisProgress } from '../components/AnalysisProgress'
 import { DualTrackResultCard } from '../components/DualTrackResultCard'
+import { AnalysisResultCard, SimpleAnalysisResult } from '../components/AnalysisResultCard'
 import { FeedbackHintBanner } from '../components/FeedbackHintBanner'
 import { GeneDetailModal } from '../components/GeneDetailModal'
+import { GeneInfoPanel } from '../components/GeneInfoPanel'
+import { OntologyModal } from '../components/OntologyModal'
 import { useSSE } from '../hooks/useSSE'
 
 const { TextArea } = Input
@@ -43,6 +46,9 @@ export default function ChatPage() {
   const [geneModalOpen, setGeneModalOpen] = useState(false)
   const [selectedGene, setSelectedGene] = useState<string>('')
   const [selectedResult, setSelectedResult] = useState<AnalysisResult | null>(null)
+  const [geneInfoPanelOpen, setGeneInfoPanelOpen] = useState(false)
+  const [ontologyModalOpen, setOntologyModalOpen] = useState(false)
+  const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null
@@ -125,7 +131,7 @@ export default function ChatPage() {
   // 创建新会话
   const createNewSession = () => {
     const newSession: ChatSession = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: '新对话',
       messages: [],
       createdAt: new Date().toString()
@@ -151,6 +157,13 @@ export default function ChatPage() {
   const detectAnalysisIntent = (text: string): boolean => {
     const keywords = ['分析', '差异', '对比', '双轨', 'tool', 'llm', 'deseq', 't检验', '表达']
     return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
+  }
+
+  // 知识本体查询意图识别
+  const detectOntologyIntent = (text: string): boolean => {
+    const keywords = ['知识本体', 'ontology', '本体查询', '查询本体', '本体图谱', '本体图', '知识图谱']
+    const textLower = text.toLowerCase()
+    return keywords.some(k => textLower.includes(k.toLowerCase()))
   }
 
   // 基因查询意图识别
@@ -184,10 +197,24 @@ export default function ChatPage() {
   const handleSend = async () => {
     if (!input.trim() || loading || !currentSessionId) return
 
+    // 检查是否是知识本体查询意图
+    if (detectOntologyIntent(input)) {
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: input.trim(),
+        timestamp: new Date().toString(),
+      }
+      updateCurrentSession(msgs => [...msgs, userMsg])
+      setInput('')
+      setOntologyModalOpen(true)
+      return
+    }
+
     // 检查是否是分析意图
     if (detectAnalysisIntent(input) && datasets.length > 0) {
       const userMsg: ChatMessage = {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         role: 'user',
         content: input.trim(),
         timestamp: new Date().toString(),
@@ -199,7 +226,7 @@ export default function ChatPage() {
       setIsAtBottom(true)
 
       // 显示"正在检索相关数据集..."
-      const searchingMsgId = (Date.now() + 1).toString()
+      const searchingMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       updateCurrentSession(msgs => [...msgs, {
         id: searchingMsgId,
         role: 'assistant',
@@ -235,44 +262,26 @@ export default function ChatPage() {
         msg => msg.type === 'progress' && msg.analysisResult
       )
 
-      if (resultMsg?.analysisResult) {
-        // 找到分析结果，直接打开基因详情弹窗
-        const userMsg: ChatMessage = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: input.trim(),
-          timestamp: new Date().toString(),
-          type: 'gene-query',
-          geneId: detectedGeneId
-        }
-        updateCurrentSession(msgs => [...msgs, userMsg])
-        setInput('')
-        setSelectedGene(detectedGeneId)
-        setSelectedResult(resultMsg.analysisResult)
-        setGeneModalOpen(true)
-        return
-      } else {
-        // 没有分析结果，提示用户先进行分析
-        const userMsg: ChatMessage = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: input.trim(),
-          timestamp: new Date().toString(),
-        }
-        const systemMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `您查询的基因 "${detectedGeneId}" 信息需要先完成分析才能展示。请先发起一个差异表达分析任务。`,
-          timestamp: new Date().toString(),
-        }
-        updateCurrentSession(msgs => [...msgs, userMsg, systemMsg])
-        setInput('')
-        return
+      // 无论是否有 analysisResult，都打开 GeneDetailModal
+      // 如果没有，会自动从后端获取历史分析
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: input.trim(),
+        timestamp: new Date().toString(),
+        type: 'gene-query',
+        geneId: detectedGeneId
       }
+      updateCurrentSession(msgs => [...msgs, userMsg])
+      setInput('')
+      setSelectedGene(detectedGeneId)
+      setSelectedResult(resultMsg?.analysisResult || null)  // 可能为 null，Modal 会自动从后端获取
+      setGeneModalOpen(true)
+      return
     }
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toString(),
@@ -295,7 +304,7 @@ export default function ChatPage() {
 
     // 添加系统消息显示选择的数据集（结构化卡片形式）
     updateCurrentSession(msgs => [...msgs, {
-      id: (Date.now() + 1).toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'assistant',
       type: 'dataset-selected',
       content: `已选择数据集「${dataset.name}」，正在开始双轨差异分析...`,
@@ -315,7 +324,7 @@ export default function ChatPage() {
   // 普通对话
   const handleNormalChat = async (userMessage: ChatMessage) => {
     const assistantMessage: ChatMessage = {
-      id: (Date.now() + 1).toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'assistant',
       content: '',
       timestamp: new Date().toString(),
@@ -341,7 +350,7 @@ export default function ChatPage() {
   // 追问处理
   const handleFollowUp = async (question: string) => {
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'user',
       content: question,
       timestamp: new Date().toString(),
@@ -356,15 +365,17 @@ export default function ChatPage() {
   const handleGeneClick = (geneId: string) => {
     setSelectedGene(geneId)
     // 找到当前消息中的 analysisResult
+    let analysisResult: AnalysisResult | null = null
     if (currentSession) {
       const resultMsg = currentSession.messages.find(
         msg => msg.type === 'progress' && msg.analysisResult
       )
-      if (resultMsg?.analysisResult) {
-        setSelectedResult(resultMsg.analysisResult)
-        setGeneModalOpen(true)
-      }
+      analysisResult = resultMsg?.analysisResult || null
     }
+    // 无论是否有 analysisResult，都打开 GeneDetailModal
+    // 如果没有，会自动从后端获取历史分析
+    setSelectedResult(analysisResult)
+    setGeneModalOpen(true)
   }
 
   // 分析请求
@@ -372,7 +383,7 @@ export default function ChatPage() {
     const dataset = selectedDataset || datasets[0]
     if (!dataset) {
       updateCurrentSession(msgs => [...msgs, {
-        id: (Date.now() + 1).toString(),
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         role: 'assistant',
         content: '请先上传表达矩阵数据集再进行分析。',
         timestamp: new Date().toString(),
@@ -381,7 +392,7 @@ export default function ChatPage() {
     }
 
     // 初始进度消息（用于显示进度条）
-    const progressMsgId = (Date.now() + 2).toString()
+    const progressMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     updateCurrentSession(msgs => [...msgs, {
       id: progressMsgId,
       role: 'assistant',
@@ -447,7 +458,7 @@ export default function ChatPage() {
       }
     } catch (error: any) {
       updateCurrentSession(msgs => [...msgs, {
-        id: (Date.now() + 3).toString(),
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         role: 'assistant',
         content: `分析失败: ${error.response?.data?.detail || error.message}`,
         timestamp: new Date().toString(),
@@ -459,6 +470,30 @@ export default function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  // 检测消息内容是否为 JSON 格式的分析结果
+  const tryParseAnalysisResult = (content: string): SimpleAnalysisResult | null => {
+    try {
+      const parsed = JSON.parse(content)
+      // 检查是否符合 SimpleAnalysisResult 格式
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        Array.isArray(parsed.significant_genes) &&
+        Array.isArray(parsed.volcano_data) &&
+        parsed.summary &&
+        typeof parsed.summary.total_genes === 'number' &&
+        typeof parsed.summary.significant_count === 'number' &&
+        typeof parsed.summary.upregulated === 'number' &&
+        typeof parsed.summary.downregulated === 'number'
+      ) {
+        return parsed as SimpleAnalysisResult
+      }
+      return null
+    } catch {
+      return null
     }
   }
 
@@ -588,6 +623,12 @@ export default function ChatPage() {
       return <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
     }
 
+    // 检测消息内容是否为 JSON 格式的分析结果
+    const simpleResult = tryParseAnalysisResult(msg.content)
+    if (simpleResult) {
+      return <AnalysisResultCard result={simpleResult} onGeneClick={handleGeneClick} />
+    }
+
     // 普通文本消息
     return (
       <div style={{
@@ -702,14 +743,40 @@ export default function ChatPage() {
         <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
         {/* 基因详情弹窗 */}
-        {selectedResult && (
-          <GeneDetailModal
-            geneId={selectedGene}
-            result={selectedResult}
-            open={geneModalOpen}
-            onClose={() => setGeneModalOpen(false)}
-          />
-        )}
+        <GeneDetailModal
+          geneId={selectedGene}
+          result={selectedResult || undefined}
+          open={geneModalOpen}
+          onClose={() => setGeneModalOpen(false)}
+          onViewInOntology={(geneId) => {
+            setGeneModalOpen(false)
+            setSelectedGene(geneId)
+            setOntologyNodeId(geneId)
+            setOntologyModalOpen(true)
+          }}
+        />
+
+        {/* 基因信息面板 */}
+        <GeneInfoPanel
+          geneId={selectedGene}
+          open={geneInfoPanelOpen}
+          onClose={() => setGeneInfoPanelOpen(false)}
+          onViewDetails={(nodeId) => {
+            setGeneInfoPanelOpen(false)
+            setOntologyNodeId(nodeId)
+            setOntologyModalOpen(true)
+          }}
+        />
+
+        {/* 知识本体查询弹窗 */}
+        <OntologyModal
+          open={ontologyModalOpen}
+          onClose={() => {
+            setOntologyModalOpen(false)
+            setOntologyNodeId(undefined)
+          }}
+          nodeId={ontologyNodeId}
+        />
 
         {/* 顶部栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
@@ -717,7 +784,7 @@ export default function ChatPage() {
             <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <RobotOutlined style={{ fontSize: 20, color: '#fff' }} />
             </div>
-            <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>天枢系统</span>
+            <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC 系统</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {datasets.length > 0 && <Tag color="blue" icon={<FileOutlined />}>{datasets.length} 个数据集</Tag>}
@@ -802,7 +869,7 @@ export default function ChatPage() {
               <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
                 <RobotOutlined style={{ fontSize: 48, color: '#fff' }} />
               </div>
-              <h2 style={{ color: 'var(--color-text-primary)', marginBottom: 8 }}>天枢系统</h2>
+              <h2 style={{ color: 'var(--color-text-primary)', marginBottom: 8 }}>ABC 系统</h2>
               <p style={{ textAlign: 'center', maxWidth: 400, lineHeight: 1.8 }}>
                 基于双轨差异分析的育种研究助手<br />
                 试试这样问：<br />
@@ -815,7 +882,7 @@ export default function ChatPage() {
                 <div key={msg.id} style={{ marginBottom: 24, display: 'flex', gap: 16, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {msg.role !== 'user' && <Avatar icon={<RobotOutlined />} style={{ background: 'var(--color-bg-dark)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }} />}
                   <div style={{ maxWidth: '90%' }}>
-                    {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>天枢</div>}
+                    {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>ABC</div>}
                     {renderMessageContent(msg)}
                   </div>
                   {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
