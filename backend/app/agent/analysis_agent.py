@@ -8,6 +8,7 @@ Replaces LangChain ReAct Agent with a direct Agent Loop:
         continue
 """
 
+import asyncio
 import json
 from typing import Any, Dict, List
 
@@ -21,7 +22,7 @@ from app.tools.differential import (
 
 # ── 工具注册表：名称 → 可调用函数 ──────────────────────────────────────────
 TOOL_HANDLERS = {
-    "differential_expression_analysis": lambda **kw: differential_expression_analysis(**kw),
+    "differential_expression_analysis": differential_expression_analysis,
 }
 
 # ── LLM function calling 工具描述列表 ─────────────────────────────────────
@@ -156,7 +157,7 @@ async def run_analysis(user_input: str) -> Dict[str, Any]:
     ]
 
     try:
-        output = _agent_loop(messages)
+        output = await asyncio.to_thread(_agent_loop, messages)
         return {"success": True, "output": output, "error": None}
     except Exception as e:
         return {"success": False, "output": None, "error": str(e)}
