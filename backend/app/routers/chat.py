@@ -6,6 +6,7 @@ from app.services.llm_service import llm_service
 from app.services.ontology_service import ontology_service
 from app.services.dataset_service import dataset_service
 from app.models.analysis import CompareRequest
+from app.agent.analysis_agent import run_analysis
 
 # 延迟导入，避免循环依赖
 from typing import TYPE_CHECKING
@@ -26,6 +27,20 @@ DATASET_PATTERN = r'(?:数据集|dataset|data)[_\s]*(\w+)|([a-zA-Z0-9_-]+(?=_con
 
 # 分组匹配模式
 GROUP_PATTERN = r'(?:control|对照|对照组)[_\s]*(\w+)|treatment[_\s]*(\w+)|(?:vs| versus |对比)[\s]*(control|对照|treatment)[\s]*(?:vs|versus|对比)[\s]*(control|对照|treatment)'
+
+# 分析命令模式
+ANALYSIS_COMMANDS = ["/analyze", "/diff", "/analyse"]
+
+
+def is_analysis_command(message: str) -> bool:
+    """检测消息是否为分析命令"""
+    if not message:
+        return False
+    message_lower = message.lower().strip()
+    for cmd in ANALYSIS_COMMANDS:
+        if message_lower.startswith(cmd):
+            return True
+    return False
 
 
 def detect_analysis_intent(message: str) -> bool:
@@ -119,6 +134,22 @@ async def chat(request: ChatRequest):
     # 转换消息格式
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     last_message = messages[-1]["content"] if messages else ""
+
+    # ===== 分析命令检测：使用 LangChain Agent =====
+    if last_message and is_analysis_command(last_message):
+        try:
+            result = await run_analysis(last_message)
+            if result.get("success"):
+                return ChatResponse(content=result.get("output", ""))
+            else:
+                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+        except HTTPException:
+            raise
+        except Exception as e:
+            import traceback
+            print(f"Analysis command failed: {e}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
 
     # ===== 意图识别：检测是否需要分析 =====
     if last_message and detect_analysis_intent(last_message):
