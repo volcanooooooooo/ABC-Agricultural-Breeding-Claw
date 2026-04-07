@@ -15,40 +15,26 @@ if TYPE_CHECKING:
 
 router = APIRouter()
 
-# 意图识别关键词
-ANALYSIS_KEYWORDS = [
-    "分析", "差异表达", "比较", "对照组", "treatment", "control",
-    "基因", "表达", "显著", "deseq", "ttest", "t检验",
-    "上调", "下调", "heatmap", "聚类", "p值", "log2fc"
-]
-
-# 数据集名称匹配模式
-DATASET_PATTERN = r'(?:数据集|dataset|data)[_\s]*(\w+)|([a-zA-Z0-9_-]+(?=_control|_treatment))'
-
-# 分组匹配模式
-GROUP_PATTERN = r'(?:control|对照|对照组)[_\s]*(\w+)|treatment[_\s]*(\w+)|(?:vs| versus |对比)[\s]*(control|对照|treatment)[\s]*(?:vs|versus|对比)[\s]*(control|对照|treatment)'
-
-# 分析命令模式
+# 分析命令前缀 - Agent 自己理解自然语言，这里只做命令前缀快速检测
 ANALYSIS_COMMANDS = ["/analyze", "/diff", "/analyse"]
 
+# 分析意图关键词 - 简化版，让 Agent 处理语义理解
+ANALYSIS_KEYWORDS = [
+    "分析", "差异表达", "差异基因", "比较",
+    "/analyze", "/diff", "log2fc", "deseq",
+]
 
-def is_analysis_command(message: str) -> bool:
-    """检测消息是否为分析命令"""
+
+def should_use_agent(message: str) -> bool:
+    """判断是否应该交给 Agent 处理（命令或分析意图）。"""
     if not message:
         return False
-    message_lower = message.lower().strip()
+    msg_lower = message.lower().strip()
     for cmd in ANALYSIS_COMMANDS:
-        if message_lower.startswith(cmd):
+        if msg_lower.startswith(cmd):
             return True
-    return False
-
-
-def detect_analysis_intent(message: str) -> bool:
-    """检测用户消息是否包含分析意图"""
-    message_lower = message.lower()
-    # 检查是否包含分析相关关键词
-    for keyword in ANALYSIS_KEYWORDS:
-        if keyword.lower() in message_lower:
+    for kw in ANALYSIS_KEYWORDS:
+        if kw.lower() in msg_lower:
             return True
     return False
 
@@ -135,8 +121,8 @@ async def chat(request: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     last_message = messages[-1]["content"] if messages else ""
 
-    # ===== 分析命令检测：使用 LangChain Agent =====
-    if last_message and is_analysis_command(last_message):
+    # ===== Agent Loop：命令或分析意图统一交给 Agent 处理 =====
+    if last_message and should_use_agent(last_message):
         try:
             result = await run_analysis(last_message)
             if result.get("success"):
@@ -147,24 +133,7 @@ async def chat(request: ChatRequest):
             raise
         except Exception as e:
             import traceback
-            print(f"Analysis command failed: {e}")
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # ===== 意图识别：检测是否需要分析 =====
-    if last_message and detect_analysis_intent(last_message):
-        # 使用新的 LangChain Agent 进行分析
-        try:
-            result = await run_analysis(last_message)
-            if result.get("success"):
-                return ChatResponse(content=result.get("output", ""))
-            else:
-                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
-        except HTTPException:
-            raise
-        except Exception as e:
-            import traceback
-            print(f"Analysis intent failed: {e}")
+            print(f"Agent loop failed: {e}")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=str(e))
 
