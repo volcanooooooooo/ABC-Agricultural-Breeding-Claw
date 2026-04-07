@@ -57,8 +57,8 @@ def differential_expression_analysis(
         significant_genes = []
 
         for gene_id, row in df.iterrows():
-            ctrl_vals = [row[s] for s in control_samples if s in df.columns]
-            trt_vals = [row[s] for s in treatment_samples if s in df.columns]
+            ctrl_vals = [row[s] for s in control_samples]
+            trt_vals = [row[s] for s in treatment_samples]
 
             if len(ctrl_vals) < 2 or len(trt_vals) < 2:
                 continue
@@ -70,8 +70,10 @@ def differential_expression_analysis(
                 continue
 
             log2fc = float(np.log2(trt_mean / ctrl_mean))
-            t_stat, pvalue = stats.ttest_ind(ctrl_vals, trt_vals)
+            _, pvalue = stats.ttest_ind(ctrl_vals, trt_vals)
             pvalue = float(pvalue)
+            if np.isnan(pvalue):
+                continue
 
             is_sig = pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold
             if is_sig:
@@ -85,7 +87,7 @@ def differential_expression_analysis(
             gene_results.append({
                 "gene_id": str(gene_id),
                 "log2fc": round(log2fc, 4),
-                "neg_log10_pvalue": round(float(-np.log10(pvalue)) if pvalue > 0 else 0, 4),
+                "neg_log10_pvalue": round(float(-np.log10(max(pvalue, 1e-300))), 4),
                 "pvalue": round(pvalue, 6),
                 "significant": bool(is_sig),
             })
