@@ -9,14 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@xyflow/react": "^12.0.0",
+    "antd": "^5.14.0",
+    "axios": "^1.6.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.22.0",
-    "@xyflow/react": "^12.0.0",
     "recharts": "^2.12.0",
-    "axios": "^1.6.7",
-    "antd": "^5.14.0",
-    "@ant-design/icons": "^5.2.6"
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",

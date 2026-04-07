@@ -36,6 +36,14 @@ class FeedbackService:
             if d.get('gene_ids') and gene_id in d['gene_ids']
         ]
 
+    def get_by_analysis(self, analysis_id: str) -> List[Feedback]:
+        """按分析 ID 获取反馈"""
+        data = self._load_feedbacks()
+        return [
+            Feedback(**d) for d in data
+            if d.get('analysis_id') == analysis_id
+        ]
+
     def create(self, feedback: FeedbackCreate) -> Feedback:
         now = datetime.utcnow().isoformat() + "Z"
 

@@ -1,272 +1,1871 @@
 {
   "nodes": [
     {
-      "id": "genotype_1",
-      "type": "genotype",
-      "name": "水稻基因型",
+      "id": "dataset:expr_matrix_raw",
+      "type": "Dataset",
+      "name": "Raw Expression Matrix",
       "properties": {
-        "category": "crop",
-        "description": "水稻的遗传构成"
+        "format": "tsv",
+        "samples": 6,
+        "genes": 10
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "genotype_2",
-      "type": "genotype",
-      "name": "小麦基因型",
+      "id": "sample:Ctrl_1",
+      "type": "Sample",
+      "name": "Ctrl_1",
       "properties": {
-        "category": "crop",
-        "description": "小麦的遗传构成"
+        "group": "Control"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "genotype_3",
-      "type": "genotype",
-      "name": "玉米基因型",
+      "id": "sample:Ctrl_2",
+      "type": "Sample",
+      "name": "Ctrl_2",
       "properties": {
-        "category": "crop",
-        "description": "玉米的遗传构成"
+        "group": "Control"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "trait_1",
-      "type": "trait",
-      "name": "产量",
+      "id": "sample:Ctrl_3",
+      "type": "Sample",
+      "name": "Ctrl_3",
       "properties": {
-        "category": "agronomic",
-        "description": "作物产量性状"
+        "group": "Control"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "trait_2",
-      "type": "trait",
-      "name": "品质",
+      "id": "sample:Treat_1",
+      "type": "Sample",
+      "name": "Treat_1",
       "properties": {
-        "category": "agronomic",
-        "description": "作物品质性状"
+        "group": "Treatment"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "trait_3",
-      "type": "trait",
-      "name": "抗病性",
+      "id": "sample:Treat_2",
+      "type": "Sample",
+      "name": "Treat_2",
       "properties": {
-        "category": "resistance",
-        "description": "抗病抗逆性状"
+        "group": "Treatment"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "trait_4",
-      "type": "trait",
-      "name": "生育期",
+      "id": "sample:Treat_3",
+      "type": "Sample",
+      "name": "Treat_3",
       "properties": {
-        "category": "phenological",
-        "description": "生长周期性状"
+        "group": "Treatment"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "metabolome_1",
-      "type": "metabolome",
-      "name": "蛋白质含量",
+      "id": "gene:Gene1",
+      "type": "Gene",
+      "name": "Gene1",
       "properties": {
-        "category": "nutritional",
-        "description": "营养成分含量"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "metabolome_2",
-      "type": "metabolome",
-      "name": "淀粉含量",
+      "id": "gene:Gene2",
+      "type": "Gene",
+      "name": "Gene2",
       "properties": {
-        "category": "nutritional",
-        "description": "营养成分含量"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "metabolome_3",
-      "type": "metabolome",
-      "name": "维生素含量",
+      "id": "gene:Gene3",
+      "type": "Gene",
+      "name": "Gene3",
       "properties": {
-        "category": "nutritional",
-        "description": "营养成分含量"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "env_1",
-      "type": "environment",
-      "name": "温度",
+      "id": "gene:Gene4",
+      "type": "Gene",
+      "name": "Gene4",
       "properties": {
-        "category": "climate",
-        "description": "温度条件"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "env_2",
-      "type": "environment",
-      "name": "降雨量",
+      "id": "gene:Gene5",
+      "type": "Gene",
+      "name": "Gene5",
       "properties": {
-        "category": "climate",
-        "description": "水分条件"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "env_3",
-      "type": "environment",
-      "name": "土壤类型",
+      "id": "gene:Gene6",
+      "type": "Gene",
+      "name": "Gene6",
       "properties": {
-        "category": "soil",
-        "description": "土壤条件"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "method_1",
-      "type": "method",
-      "name": "杂交育种",
+      "id": "gene:Gene7",
+      "type": "Gene",
+      "name": "Gene7",
       "properties": {
-        "category": "breeding",
-        "description": "传统育种方法"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "method_2",
-      "type": "method",
-      "name": "分子标记辅助选择",
+      "id": "gene:Gene8",
+      "type": "Gene",
+      "name": "Gene8",
       "properties": {
-        "category": "breeding",
-        "description": "现代育种技术"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     },
     {
-      "id": "method_3",
-      "type": "method",
-      "name": "基因编辑",
+      "id": "gene:Gene9",
+      "type": "Gene",
+      "name": "Gene9",
       "properties": {
-        "category": "biotech",
-        "description": "生物技术方法"
+        "chromosome": "unknown"
       },
-      "created_at": "2026-03-18T13:53:29.695890",
-      "updated_at": "2026-03-18T13:53:29.695890"
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "gene:Gene10",
+      "type": "Gene",
+      "name": "Gene10",
+      "properties": {
+        "chromosome": "unknown"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene1",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene1",
+      "properties": {
+        "value": 120,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene1",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene1",
+      "properties": {
+        "value": 130,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene1",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene1",
+      "properties": {
+        "value": 125,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene1",
+      "type": "Measurement",
+      "name": "Treat_1_Gene1",
+      "properties": {
+        "value": 128,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene1",
+      "type": "Measurement",
+      "name": "Treat_2_Gene1",
+      "properties": {
+        "value": 132,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene1",
+      "type": "Measurement",
+      "name": "Treat_3_Gene1",
+      "properties": {
+        "value": 127,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene2",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene2",
+      "properties": {
+        "value": 52,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene2",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene2",
+      "properties": {
+        "value": 50,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene2",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene2",
+      "properties": {
+        "value": 53,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene2",
+      "type": "Measurement",
+      "name": "Treat_1_Gene2",
+      "properties": {
+        "value": 51,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene2",
+      "type": "Measurement",
+      "name": "Treat_2_Gene2",
+      "properties": {
+        "value": 54,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene2",
+      "type": "Measurement",
+      "name": "Treat_3_Gene2",
+      "properties": {
+        "value": 50,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene3",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene3",
+      "properties": {
+        "value": 80,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene3",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene3",
+      "properties": {
+        "value": 83,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene3",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene3",
+      "properties": {
+        "value": 81,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene3",
+      "type": "Measurement",
+      "name": "Treat_1_Gene3",
+      "properties": {
+        "value": 245,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene3",
+      "type": "Measurement",
+      "name": "Treat_2_Gene3",
+      "properties": {
+        "value": 251,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene3",
+      "type": "Measurement",
+      "name": "Treat_3_Gene3",
+      "properties": {
+        "value": 248,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene4",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene4",
+      "properties": {
+        "value": 203,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene4",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene4",
+      "properties": {
+        "value": 201,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene4",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene4",
+      "properties": {
+        "value": 205,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene4",
+      "type": "Measurement",
+      "name": "Treat_1_Gene4",
+      "properties": {
+        "value": 198,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene4",
+      "type": "Measurement",
+      "name": "Treat_2_Gene4",
+      "properties": {
+        "value": 202,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene4",
+      "type": "Measurement",
+      "name": "Treat_3_Gene4",
+      "properties": {
+        "value": 200,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene5",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene5",
+      "properties": {
+        "value": 34,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene5",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene5",
+      "properties": {
+        "value": 35,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene5",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene5",
+      "properties": {
+        "value": 33,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene5",
+      "type": "Measurement",
+      "name": "Treat_1_Gene5",
+      "properties": {
+        "value": 36,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene5",
+      "type": "Measurement",
+      "name": "Treat_2_Gene5",
+      "properties": {
+        "value": 34,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene5",
+      "type": "Measurement",
+      "name": "Treat_3_Gene5",
+      "properties": {
+        "value": 35,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene6",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene6",
+      "properties": {
+        "value": 152,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene6",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene6",
+      "properties": {
+        "value": 150,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene6",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene6",
+      "properties": {
+        "value": 154,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene6",
+      "type": "Measurement",
+      "name": "Treat_1_Gene6",
+      "properties": {
+        "value": 151,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene6",
+      "type": "Measurement",
+      "name": "Treat_2_Gene6",
+      "properties": {
+        "value": 153,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene6",
+      "type": "Measurement",
+      "name": "Treat_3_Gene6",
+      "properties": {
+        "value": 150,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene7",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene7",
+      "properties": {
+        "value": 421,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene7",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene7",
+      "properties": {
+        "value": 418,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene7",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene7",
+      "properties": {
+        "value": 423,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene7",
+      "type": "Measurement",
+      "name": "Treat_1_Gene7",
+      "properties": {
+        "value": 102,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene7",
+      "type": "Measurement",
+      "name": "Treat_2_Gene7",
+      "properties": {
+        "value": 98,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene7",
+      "type": "Measurement",
+      "name": "Treat_3_Gene7",
+      "properties": {
+        "value": 105,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene8",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene8",
+      "properties": {
+        "value": 77,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene8",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene8",
+      "properties": {
+        "value": 75,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene8",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene8",
+      "properties": {
+        "value": 78,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene8",
+      "type": "Measurement",
+      "name": "Treat_1_Gene8",
+      "properties": {
+        "value": 76,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene8",
+      "type": "Measurement",
+      "name": "Treat_2_Gene8",
+      "properties": {
+        "value": 77,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene8",
+      "type": "Measurement",
+      "name": "Treat_3_Gene8",
+      "properties": {
+        "value": 75,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene9",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene9",
+      "properties": {
+        "value": 12,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene9",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene9",
+      "properties": {
+        "value": 13,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene9",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene9",
+      "properties": {
+        "value": 11,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene9",
+      "type": "Measurement",
+      "name": "Treat_1_Gene9",
+      "properties": {
+        "value": 12,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene9",
+      "type": "Measurement",
+      "name": "Treat_2_Gene9",
+      "properties": {
+        "value": 14,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene9",
+      "type": "Measurement",
+      "name": "Treat_3_Gene9",
+      "properties": {
+        "value": 11,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_1_Gene10",
+      "type": "Measurement",
+      "name": "Ctrl_1_Gene10",
+      "properties": {
+        "value": 99,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_2_Gene10",
+      "type": "Measurement",
+      "name": "Ctrl_2_Gene10",
+      "properties": {
+        "value": 102,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Ctrl_3_Gene10",
+      "type": "Measurement",
+      "name": "Ctrl_3_Gene10",
+      "properties": {
+        "value": 100,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_1_Gene10",
+      "type": "Measurement",
+      "name": "Treat_1_Gene10",
+      "properties": {
+        "value": 101,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_2_Gene10",
+      "type": "Measurement",
+      "name": "Treat_2_Gene10",
+      "properties": {
+        "value": 103,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "measurement:Treat_3_Gene10",
+      "type": "Measurement",
+      "name": "Treat_3_Gene10",
+      "properties": {
+        "value": 100,
+        "unit": "count"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:preprocess_tool",
+      "type": "ProcessStep",
+      "name": "Preprocessing (Tool)",
+      "properties": {
+        "mode": "tool",
+        "tool": "fastp+DESeq2_prep",
+        "confidence": 0.9,
+        "weight": 0.8
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:preprocess_llm",
+      "type": "ProcessStep",
+      "name": "Preprocessing (LLM)",
+      "properties": {
+        "mode": "llm",
+        "model": "OpenClaw+DeepSeek",
+        "confidence": 0.5,
+        "weight": 0.3
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:diff_exp_tool",
+      "type": "ProcessStep",
+      "name": "Differential Expression (Tool)",
+      "properties": {
+        "mode": "tool",
+        "tool": "DESeq2",
+        "confidence": 0.9,
+        "weight": 0.8
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:diff_exp_llm",
+      "type": "ProcessStep",
+      "name": "Differential Expression (LLM)",
+      "properties": {
+        "mode": "llm",
+        "model": "OpenClaw+DeepSeek",
+        "confidence": 0.5,
+        "weight": 0.3
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:enrich_tool",
+      "type": "ProcessStep",
+      "name": "Enrichment Analysis (Tool)",
+      "properties": {
+        "mode": "tool",
+        "tool": "clusterProfiler",
+        "confidence": 0.9,
+        "weight": 0.8
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:enrich_llm",
+      "type": "ProcessStep",
+      "name": "Enrichment Analysis (LLM)",
+      "properties": {
+        "mode": "llm",
+        "model": "OpenClaw+DeepSeek",
+        "confidence": 0.5,
+        "weight": 0.3
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:report_tool",
+      "type": "ProcessStep",
+      "name": "Reporting (Tool)",
+      "properties": {
+        "mode": "tool",
+        "tool": "ggplot2+RMarkdown",
+        "confidence": 0.9,
+        "weight": 0.8
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "process:report_llm",
+      "type": "ProcessStep",
+      "name": "Reporting (LLM)",
+      "properties": {
+        "mode": "llm",
+        "model": "OpenClaw+DeepSeek",
+        "confidence": 0.5,
+        "weight": 0.3
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "tool:fastp",
+      "type": "Tool",
+      "name": "fastp",
+      "properties": {
+        "version": "0.23"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "tool:DESeq2",
+      "type": "Tool",
+      "name": "DESeq2",
+      "properties": {
+        "version": "1.40"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "tool:clusterProfiler",
+      "type": "Tool",
+      "name": "clusterProfiler",
+      "properties": {
+        "version": "4.8"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "tool:ggplot2",
+      "type": "Tool",
+      "name": "ggplot2",
+      "properties": {
+        "version": "3.4"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "result:diff_table_tool",
+      "type": "Result",
+      "name": "Differential Expression Results (Tool)",
+      "properties": {
+        "format": "csv",
+        "source": "DESeq2"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "result:diff_table_llm",
+      "type": "Result",
+      "name": "Differential Expression Results (LLM)",
+      "properties": {
+        "format": "text",
+        "source": "DeepSeek"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "conclusion:gene3_up",
+      "type": "Conclusion",
+      "name": "Gene3 is up-regulated",
+      "properties": {
+        "confidence": 0.95,
+        "evidence": "diff_result_tool"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "conclusion:gene7_down",
+      "type": "Conclusion",
+      "name": "Gene7 is down-regulated",
+      "properties": {
+        "confidence": 0.98,
+        "evidence": "diff_result_tool"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "Gene3",
+      "type": "Gene",
+      "name": "Gene3",
+      "properties": {
+        "expression_change": "up",
+        "log2fc": 1.6084214735451452,
+        "pvalue": 1.1087545355455446e-07,
+        "source_analysis": "job_82b9bc3c",
+        "source_dataset": "ds_rice_20240306",
+        "source_dataset_name": "水稻3月6日表达数据"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
+    },
+    {
+      "id": "Gene7",
+      "type": "Gene",
+      "name": "Gene7",
+      "properties": {
+        "expression_change": "down",
+        "log2fc": -2.0488307625323006,
+        "pvalue": 2.24234555383695e-08,
+        "source_analysis": "job_82b9bc3c",
+        "source_dataset": "ds_rice_20240306",
+        "source_dataset_name": "水稻3月6日表达数据"
+      },
+      "created_at": "2026-04-07T10:15:22.466091",
+      "updated_at": "2026-04-07T10:15:22.466091"
     }
   ],
   "edges": [
     {
-      "source": "genotype_1",
-      "target": "trait_1",
-      "relation": "决定"
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "genotype_1",
-      "target": "trait_2",
-      "relation": "影响"
+      "source": "measurement:Ctrl_1_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "genotype_1",
-      "target": "trait_3",
-      "relation": "决定"
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "genotype_2",
-      "target": "trait_1",
-      "relation": "决定"
+      "source": "measurement:Ctrl_2_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "genotype_2",
-      "target": "trait_2",
-      "relation": "影响"
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "genotype_3",
-      "target": "trait_1",
-      "relation": "决定"
+      "source": "measurement:Ctrl_3_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "genotype_3",
-      "target": "trait_4",
-      "relation": "影响"
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "trait_1",
-      "target": "metabolome_1",
-      "relation": "关联"
+      "source": "measurement:Treat_1_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "trait_2",
-      "target": "metabolome_2",
-      "relation": "影响"
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "trait_2",
-      "target": "metabolome_3",
-      "relation": "影响"
+      "source": "measurement:Treat_2_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "env_1",
-      "target": "trait_1",
-      "relation": "影响"
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene1",
+      "relation": "has_measurement"
     },
     {
-      "source": "env_1",
-      "target": "trait_4",
-      "relation": "影响"
+      "source": "measurement:Treat_3_Gene1",
+      "target": "gene:Gene1",
+      "relation": "for_gene"
     },
     {
-      "source": "env_2",
-      "target": "trait_1",
-      "relation": "影响"
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene2",
+      "relation": "has_measurement"
     },
     {
-      "source": "env_2",
-      "target": "trait_3",
-      "relation": "影响"
+      "source": "measurement:Ctrl_1_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
     },
     {
-      "source": "env_3",
-      "target": "trait_1",
-      "relation": "影响"
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene2",
+      "relation": "has_measurement"
     },
     {
-      "source": "method_1",
-      "target": "genotype_1",
-      "relation": "应用于"
+      "source": "measurement:Ctrl_2_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
     },
     {
-      "source": "method_2",
-      "target": "genotype_1",
-      "relation": "应用于"
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene2",
+      "relation": "has_measurement"
     },
     {
-      "source": "method_3",
-      "target": "genotype_1",
-      "relation": "应用于"
+      "source": "measurement:Ctrl_3_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene2",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene2",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene2",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene2",
+      "target": "gene:Gene2",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene3",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene3",
+      "target": "gene:Gene3",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene4",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene4",
+      "target": "gene:Gene4",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene5",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene5",
+      "target": "gene:Gene5",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene6",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene6",
+      "target": "gene:Gene6",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene7",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene7",
+      "target": "gene:Gene7",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene8",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene8",
+      "target": "gene:Gene8",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene9",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene9",
+      "target": "gene:Gene9",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_1",
+      "target": "measurement:Ctrl_1_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_1_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_2",
+      "target": "measurement:Ctrl_2_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_2_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Ctrl_3",
+      "target": "measurement:Ctrl_3_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Ctrl_3_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_1",
+      "target": "measurement:Treat_1_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_1_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_2",
+      "target": "measurement:Treat_2_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_2_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "sample:Treat_3",
+      "target": "measurement:Treat_3_Gene10",
+      "relation": "has_measurement"
+    },
+    {
+      "source": "measurement:Treat_3_Gene10",
+      "target": "gene:Gene10",
+      "relation": "for_gene"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Ctrl_1",
+      "relation": "contains"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Ctrl_2",
+      "relation": "contains"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Ctrl_3",
+      "relation": "contains"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Treat_1",
+      "relation": "contains"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Treat_2",
+      "relation": "contains"
+    },
+    {
+      "source": "dataset:expr_matrix_raw",
+      "target": "sample:Treat_3",
+      "relation": "contains"
+    },
+    {
+      "source": "process:preprocess_tool",
+      "target": "tool:fastp",
+      "relation": "uses_tool"
+    },
+    {
+      "source": "process:preprocess_tool",
+      "target": "tool:DESeq2",
+      "relation": "uses_tool"
+    },
+    {
+      "source": "process:diff_exp_tool",
+      "target": "tool:DESeq2",
+      "relation": "uses_tool"
+    },
+    {
+      "source": "process:enrich_tool",
+      "target": "tool:clusterProfiler",
+      "relation": "uses_tool"
+    },
+    {
+      "source": "process:report_tool",
+      "target": "tool:ggplot2",
+      "relation": "uses_tool"
+    },
+    {
+      "source": "process:diff_exp_tool",
+      "target": "process:preprocess_tool",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:diff_exp_llm",
+      "target": "process:preprocess_llm",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:enrich_tool",
+      "target": "process:diff_exp_tool",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:enrich_llm",
+      "target": "process:diff_exp_llm",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:report_tool",
+      "target": "process:diff_exp_tool",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:report_tool",
+      "target": "process:enrich_tool",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:report_llm",
+      "target": "process:diff_exp_llm",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:report_llm",
+      "target": "process:enrich_llm",
+      "relation": "depends_on"
+    },
+    {
+      "source": "process:diff_exp_tool",
+      "target": "result:diff_table_tool",
+      "relation": "produces"
+    },
+    {
+      "source": "process:diff_exp_llm",
+      "target": "result:diff_table_llm",
+      "relation": "produces"
+    },
+    {
+      "source": "result:diff_table_tool",
+      "target": "conclusion:gene3_up",
+      "relation": "supports"
+    },
+    {
+      "source": "result:diff_table_tool",
+      "target": "conclusion:gene7_down",
+      "relation": "supports"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_e34d5b91",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_e34d5b91",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_095ed157",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_095ed157",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_0668425d",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_0668425d",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_4336e6cb",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_4336e6cb",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_d837464d",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_d837464d",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_01a12bf1",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_01a12bf1",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_a752874a",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_a752874a",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_3105ee9a",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_3105ee9a",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_9549c35f",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_9549c35f",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene3",
+      "target": "job_82b9bc3c",
+      "relation": "detected_in"
+    },
+    {
+      "source": "Gene7",
+      "target": "job_82b9bc3c",
+      "relation": "detected_in"
     }
   ]
 }

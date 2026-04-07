@@ -76,7 +76,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           {activeTab === 'login' ? '欢迎回来' : '创建账号'}
         </h2>
         <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>
-          {activeTab === 'login' ? '登录以继续使用天枢系统' : '注册成为天枢系统用户'}
+          {activeTab === 'login' ? '登录以继续使用 ABC 系统' : '注册成为 ABC 系统用户'}
         </p>
       </div>
 

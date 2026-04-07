@@ -1,12 +1,15 @@
 import json
 import os
+import csv
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from pathlib import Path
 from app.models.ontology import (
     OntologyGraph, OntologyNode, OntologyEdge,
     OntologyType, OntologyCreate, OntologyUpdate, OntologyListResponse
 )
 from app.config import settings
+
 
 class OntologyService:
     """本体服务"""
@@ -15,24 +18,87 @@ class OntologyService:
         self.graph: OntologyGraph = OntologyGraph()
         self._load_ontology()
 
+    def _get_ref_doc_data_dir(self) -> Path:
+        """获取 ref_doc/data 目录路径"""
+        base_dir = Path(__file__).resolve().parent.parent.parent.parent
+        return base_dir / "ref_doc" / "data"
+
     def _load_ontology(self):
-        """加载本体数据"""
+        """加载本体数据，优先从 ref_doc CSV 加载"""
+        ref_doc_dir = self._get_ref_doc_data_dir()
+        nodes_csv = ref_doc_dir / "ontology_nodes.csv"
+        edges_csv = ref_doc_dir / "ontology_edges.csv"
+
+        if nodes_csv.exists() and edges_csv.exists():
+            try:
+                nodes = self._load_nodes_from_csv(nodes_csv)
+                edges = self._load_edges_from_csv(edges_csv)
+                self.graph = OntologyGraph(nodes=nodes, edges=edges)
+                print(f"Loaded ontology from ref_doc: {len(nodes)} nodes, {len(edges)} edges")
+                return
+            except Exception as e:
+                print(f"Failed to load ontology from ref_doc: {e}")
+
+        # 回退：尝试加载本地 JSON 文件
         ontology_path = os.path.join(settings.data_dir, settings.ontology_file)
         if os.path.exists(ontology_path):
             try:
                 with open(ontology_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.graph = OntologyGraph(**data)
+                print(f"Loaded ontology from JSON: {len(self.graph.nodes)} nodes, {len(self.graph.edges)} edges")
             except Exception as e:
-                print(f"Failed to load ontology: {e}")
-                self.graph = self._create_default_ontology()
-                self._save_ontology()
+                print(f"Failed to load ontology from JSON: {e}")
+                self.graph = OntologyGraph()
         else:
-            self.graph = self._create_default_ontology()
-            self._save_ontology()
+            self.graph = OntologyGraph()
+
+    def _load_nodes_from_csv(self, csv_path: Path) -> List[OntologyNode]:
+        """从 CSV 加载节点"""
+        nodes = []
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                node_id = row['id']
+                type_str = row.get('type', 'Dataset')
+
+                # 映射类型字符串到枚举
+                try:
+                    node_type = OntologyType(type_str)
+                except ValueError:
+                    node_type = OntologyType.DATASET
+
+                # 解析 properties JSON
+                properties = {}
+                if row.get('properties'):
+                    try:
+                        properties = json.loads(row['properties'])
+                    except json.JSONDecodeError:
+                        pass
+
+                nodes.append(OntologyNode(
+                    id=node_id,
+                    type=node_type,
+                    name=row['label'],
+                    properties=properties
+                ))
+        return nodes
+
+    def _load_edges_from_csv(self, csv_path: Path) -> List[OntologyEdge]:
+        """从 CSV 加载边"""
+        edges = []
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                edges.append(OntologyEdge(
+                    source=row['source'],
+                    target=row['target'],
+                    relation=row['type']
+                ))
+        return edges
 
     def _save_ontology(self):
-        """保存本体数据"""
+        """保存本体数据到 JSON 和 CSV"""
         ontology_path = os.path.join(settings.data_dir, settings.ontology_file)
         os.makedirs(settings.data_dir, exist_ok=True)
 
@@ -41,66 +107,37 @@ class OntologyService:
                 return obj.isoformat()
             return obj
 
+        # 保存到 JSON
         with open(ontology_path, 'w', encoding='utf-8') as f:
             json.dump(self.graph.model_dump(), f, ensure_ascii=False, indent=2, default=serialize_datetime)
 
-    def _create_default_ontology(self) -> OntologyGraph:
-        """创建默认本体图谱"""
-        nodes = [
-            OntologyNode(id="genotype_1", type=OntologyType.GENOTYPE, name="水稻基因型",
-                        properties={"category": "crop", "description": "水稻的遗传构成"}),
-            OntologyNode(id="genotype_2", type=OntologyType.GENOTYPE, name="小麦基因型",
-                        properties={"category": "crop", "description": "小麦的遗传构成"}),
-            OntologyNode(id="genotype_3", type=OntologyType.GENOTYPE, name="玉米基因型",
-                        properties={"category": "crop", "description": "玉米的遗传构成"}),
-            OntologyNode(id="trait_1", type=OntologyType.TRAIT, name="产量",
-                        properties={"category": "agronomic", "description": "作物产量性状"}),
-            OntologyNode(id="trait_2", type=OntologyType.TRAIT, name="品质",
-                        properties={"category": "agronomic", "description": "作物品质性状"}),
-            OntologyNode(id="trait_3", type=OntologyType.TRAIT, name="抗病性",
-                        properties={"category": "resistance", "description": "抗病抗逆性状"}),
-            OntologyNode(id="trait_4", type=OntologyType.TRAIT, name="生育期",
-                        properties={"category": "phenological", "description": "生长周期性状"}),
-            OntologyNode(id="metabolome_1", type=OntologyType.METABOLOME, name="蛋白质含量",
-                        properties={"category": "nutritional", "description": "营养成分含量"}),
-            OntologyNode(id="metabolome_2", type=OntologyType.METABOLOME, name="淀粉含量",
-                        properties={"category": "nutritional", "description": "营养成分含量"}),
-            OntologyNode(id="metabolome_3", type=OntologyType.METABOLOME, name="维生素含量",
-                        properties={"category": "nutritional", "description": "营养成分含量"}),
-            OntologyNode(id="env_1", type=OntologyType.ENVIRONMENT, name="温度",
-                        properties={"category": "climate", "description": "温度条件"}),
-            OntologyNode(id="env_2", type=OntologyType.ENVIRONMENT, name="降雨量",
-                        properties={"category": "climate", "description": "水分条件"}),
-            OntologyNode(id="env_3", type=OntologyType.ENVIRONMENT, name="土壤类型",
-                        properties={"category": "soil", "description": "土壤条件"}),
-            OntologyNode(id="method_1", type=OntologyType.METHOD, name="杂交育种",
-                        properties={"category": "breeding", "description": "传统育种方法"}),
-            OntologyNode(id="method_2", type=OntologyType.METHOD, name="分子标记辅助选择",
-                        properties={"category": "breeding", "description": "现代育种技术"}),
-            OntologyNode(id="method_3", type=OntologyType.METHOD, name="基因编辑",
-                        properties={"category": "biotech", "description": "生物技术方法"}),
-        ]
-        edges = [
-            OntologyEdge(source="genotype_1", target="trait_1", relation="决定"),
-            OntologyEdge(source="genotype_1", target="trait_2", relation="影响"),
-            OntologyEdge(source="genotype_1", target="trait_3", relation="决定"),
-            OntologyEdge(source="genotype_2", target="trait_1", relation="决定"),
-            OntologyEdge(source="genotype_2", target="trait_2", relation="影响"),
-            OntologyEdge(source="genotype_3", target="trait_1", relation="决定"),
-            OntologyEdge(source="genotype_3", target="trait_4", relation="影响"),
-            OntologyEdge(source="trait_1", target="metabolome_1", relation="关联"),
-            OntologyEdge(source="trait_2", target="metabolome_2", relation="影响"),
-            OntologyEdge(source="trait_2", target="metabolome_3", relation="影响"),
-            OntologyEdge(source="env_1", target="trait_1", relation="影响"),
-            OntologyEdge(source="env_1", target="trait_4", relation="影响"),
-            OntologyEdge(source="env_2", target="trait_1", relation="影响"),
-            OntologyEdge(source="env_2", target="trait_3", relation="影响"),
-            OntologyEdge(source="env_3", target="trait_1", relation="影响"),
-            OntologyEdge(source="method_1", target="genotype_1", relation="应用于"),
-            OntologyEdge(source="method_2", target="genotype_1", relation="应用于"),
-            OntologyEdge(source="method_3", target="genotype_1", relation="应用于"),
-        ]
-        return OntologyGraph(nodes=nodes, edges=edges)
+        # 同时保存到 CSV（保持与 ref_doc 数据格式一致）
+        try:
+            ref_doc_dir = self._get_ref_doc_data_dir()
+            ref_doc_dir.mkdir(parents=True, exist_ok=True)
+            nodes_csv = ref_doc_dir / "ontology_nodes.csv"
+            edges_csv = ref_doc_dir / "ontology_edges.csv"
+
+            # 保存节点到 CSV
+            with open(nodes_csv, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['id', 'label', 'type', 'properties'])
+                for node in self.graph.nodes:
+                    writer.writerow([
+                        node.id,
+                        node.name,
+                        node.type.value if hasattr(node.type, 'value') else node.type,
+                        json.dumps(node.properties, ensure_ascii=False)
+                    ])
+
+            # 保存边到 CSV
+            with open(edges_csv, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['source', 'target', 'type'])
+                for edge in self.graph.edges:
+                    writer.writerow([edge.source, edge.target, edge.relation])
+        except Exception as e:
+            print(f"Failed to save ontology to CSV: {e}")
 
     def get_graph(self) -> OntologyGraph:
         """获取完整本体图谱"""
@@ -133,6 +170,47 @@ class OntologyService:
         incoming = [e for e in self.graph.edges if e.target == node_id]
         outgoing = [e for e in self.graph.edges if e.source == node_id]
         return {"incoming": incoming, "outgoing": outgoing}
+
+    def node_exists(self, node_id: str) -> bool:
+        """检查节点是否存在"""
+        return any(n.id == node_id for n in self.graph.nodes)
+
+    def get_or_create_gene_node(self, gene_id: str, properties: Optional[Dict[str, Any]] = None) -> OntologyNode:
+        """获取或创建基因节点"""
+        existing = self.get_node(gene_id)
+        if existing:
+            # 更新属性
+            if properties:
+                existing.properties.update(properties)
+                self._save_ontology()
+            return existing
+
+        # 创建新节点
+        node = OntologyNode(
+            id=gene_id,
+            type=OntologyType.GENE,
+            name=gene_id,
+            properties=properties or {}
+        )
+        self.graph.nodes.append(node)
+        self._save_ontology()
+        return node
+
+    def add_analysis_result_edge(self, gene_id: str, analysis_id: str, expression_change: str) -> Optional[OntologyEdge]:
+        """添加基因与分析结果的关联边"""
+        # 检查是否已存在相同的边
+        for edge in self.graph.edges:
+            if edge.source == gene_id and edge.target == analysis_id and edge.relation == "detected_in":
+                return edge  # 已存在，直接返回
+
+        edge = OntologyEdge(
+            source=gene_id,
+            target=analysis_id,
+            relation="detected_in"
+        )
+        self.graph.edges.append(edge)
+        self._save_ontology()
+        return edge
 
     def search_nodes(self, keyword: str) -> List[OntologyNode]:
         """搜索节点"""

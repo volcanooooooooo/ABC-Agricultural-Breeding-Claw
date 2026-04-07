@@ -3,12 +3,24 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+
 class OntologyType(str, Enum):
+    """本体节点类型"""
+    # 原有类型（保留兼容）
     GENOTYPE = "genotype"
     TRAIT = "trait"
     METABOLOME = "metabolome"
     ENVIRONMENT = "environment"
     METHOD = "method"
+    # ref_doc 数据类型
+    DATASET = "Dataset"
+    SAMPLE = "Sample"
+    GENE = "Gene"
+    MEASUREMENT = "Measurement"
+    PROCESS_STEP = "ProcessStep"
+    TOOL = "Tool"
+    RESULT = "Result"
+    CONCLUSION = "Conclusion"
 
 class OntologyNode(BaseModel):
     id: str = Field(..., description="节点唯一标识")

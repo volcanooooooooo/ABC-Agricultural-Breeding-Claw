@@ -279,6 +279,8 @@ export const datasetApi = {
 // Feedback API
 export const feedbackApi = {
   getAll: () => api.get<ApiResponse<Feedback[]>>('/feedbacks'),
+  getByAnalysis: (analysisId: string) =>
+    api.get<ApiResponse<Feedback[]>>('/feedbacks', { params: { analysis_id: analysisId } }),
   create: (data: Omit<Feedback, 'id' | 'created_at'>) => api.post<ApiResponse<Feedback>>('/feedbacks', data),
 }
 

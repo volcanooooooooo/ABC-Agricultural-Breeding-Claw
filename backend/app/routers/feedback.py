@@ -10,10 +10,12 @@ router = APIRouter(tags=["feedbacks"])
 
 
 @router.get("", response_model=List[Feedback])
-async def get_feedbacks(gene_id: Optional[str] = None):
-    """获取反馈列表，支持按基因筛选"""
+async def get_feedbacks(gene_id: Optional[str] = None, analysis_id: Optional[str] = None):
+    """获取反馈列表，支持按基因或分析ID筛选"""
     if gene_id:
         return feedback_service.get_by_gene(gene_id)
+    if analysis_id:
+        return feedback_service.get_by_analysis(analysis_id)
     return feedback_service.get_all()
 
 

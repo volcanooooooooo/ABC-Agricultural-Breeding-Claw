@@ -7,6 +7,7 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
   HistoryOutlined,
+  ArrowRightOutlined,
 } from '@ant-design/icons'
 import { AnalysisResult, AnalysisResultSummary, feedbackApi, analysisApi, api } from '../api/client'
 
@@ -21,10 +22,11 @@ interface FeedbackHint {
 
 interface GeneDetailModalProps {
   geneId: string
-  result: AnalysisResult
+  result?: AnalysisResult  // 修改为可选
   open: boolean
   onClose: () => void
   showFeedback?: boolean  // 新增：是否显示反馈区域（默认 true）
+  onViewInOntology?: (geneId: string) => void  // 新增：跳转到本体库的回调
 }
 
 interface GeneData {
@@ -41,7 +43,7 @@ const FEEDBACK_HINTS_LIMIT = 10
 const FEEDBACK_DISPLAY_LIMIT = 3
 const FEEDBACK_RETRY_DELAY_MS = 5000
 
-export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = true }: GeneDetailModalProps) {
+export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = true, onViewInOntology }: GeneDetailModalProps) {
   const [annotation, setAnnotation] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [feedbackWarnings, setFeedbackWarnings] = useState<FeedbackHint[]>([])
@@ -52,11 +54,15 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
   const [selectedHistoryResult, setSelectedHistoryResult] = useState<AnalysisResult | null>(null)
   const [loadingHistoryDetail, setLoadingHistoryDetail] = useState(false)
 
+  // 当前使用的分析结果（优先使用 props.result，否则使用选中的历史结果）
+  const currentResult = result || selectedHistoryResult
+
   // 从结果中提取基因数据
   const extractGeneData = (geneId: string, source: 'tool' | 'llm'): GeneData | null => {
+    if (!currentResult) return null
     const genes = source === 'tool'
-      ? result.tool_result.significant_genes
-      : result.llm_result.significant_genes
+      ? currentResult.tool_result.significant_genes
+      : currentResult.llm_result.significant_genes
     return genes.find(g => g.gene_id === geneId) || null
   }
 
@@ -160,15 +166,28 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
       fetchHistoryAnalyses(geneId)
     } else {
       setFeedbackWarnings([])
+      setSelectedHistoryId(null)
+      setSelectedHistoryResult(null)
     }
   }, [open, geneId])
 
+  // 当没有传入 result 但有历史分析时，自动选中第一个历史分析详情
+  useEffect(() => {
+    if (!result && historyAnalyses.length > 0 && !selectedHistoryResult) {
+      handleViewHistoryDetail(historyAnalyses[0].id)
+    }
+  }, [historyAnalyses, result, selectedHistoryResult])
+
   const handleSubmitAnnotation = async () => {
     if (!annotation.trim()) return
+    if (!currentResult) {
+      message.error('没有可提交注释的分析结果')
+      return
+    }
     setSubmitting(true)
     try {
       await feedbackApi.create({
-        analysis_id: result.id,
+        analysis_id: currentResult.id,
         track: 'tool',
         rating: 'positive',
         comment: annotation.trim(),
@@ -198,7 +217,7 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
       onCancel={onClose}
       footer={null}
       width={560}
-      bodyStyle={{ padding: '16px 24px' }}
+      styles={{ body: { padding: '16px 24px' } }}
     >
       {/* 历史反馈区域 */}
       {showFeedback && (feedbackWarnings.length > 0 || loadingFeedback) && (
@@ -356,6 +375,43 @@ export function GeneDetailModal({ geneId, result, open, onClose, showFeedback = 
           </Button>
         </div>
       </div>
+
+      {/* 查看本体库按钮 */}
+      {onViewInOntology && (
+        <div style={{ marginTop: 16 }}>
+          <Divider style={{ margin: '12px 0' }} />
+          <div
+            onClick={() => onViewInOntology(geneId)}
+            style={{
+              padding: '10px 16px',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-accent)',
+              borderRadius: 8,
+              color: 'var(--color-accent)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              textAlign: 'center',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--color-accent)'
+              e.currentTarget.style.color = '#fff'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--color-bg-card)'
+              e.currentTarget.style.color = 'var(--color-accent)'
+            }}
+          >
+            <ArrowRightOutlined style={{ fontSize: 12 }} />
+            在知识本体库中查看详情
+          </div>
+        </div>
+      )}
 
       {/* 历史分析 Tab */}
       {(historyAnalyses.length > 0 || loadingHistory) && (

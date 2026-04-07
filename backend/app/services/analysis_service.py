@@ -193,12 +193,13 @@ class AnalysisService:
                     continue
             return sorted(results, key=lambda x: x.get('created_at', ''), reverse=True)
         else:
-            # 按基因筛选：需要关联 feedback 表
+            # 按基因筛选：先尝试从 feedback 关联查找，如果没有则扫描所有结果文件
             from app.services.feedback_service import feedback_service
             feedbacks = feedback_service.get_by_gene(gene_id)
             analysis_ids = list(set(fb.analysis_id for fb in feedbacks))
 
             results = []
+            # 优先从 feedback 关联的分析结果
             for job_id in analysis_ids:
                 file_path = ANALYSIS_RESULTS_DIR / f"{job_id}.json"
                 if file_path.exists():
@@ -207,6 +208,21 @@ class AnalysisService:
                             results.append(json.load(f))
                     except (json.JSONDecodeError, IOError):
                         continue
+
+            # 如果通过 feedback 没找到结果，则扫描所有分析结果文件查找包含该基因的
+            if not results:
+                for file_path in ANALYSIS_RESULTS_DIR.glob("job_*.json"):
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            result = json.load(f)
+                            # 检查该结果中是否包含目标基因
+                            tool_genes = [g.get('gene_id', '').lower() for g in result.get('tool_result', {}).get('significant_genes', [])]
+                            llm_genes = [g.get('gene_id', '').lower() for g in result.get('llm_result', {}).get('significant_genes', [])]
+                            if gene_id.lower() in tool_genes or gene_id.lower() in llm_genes:
+                                results.append(result)
+                    except (json.JSONDecodeError, IOError):
+                        continue
+
             return sorted(results, key=lambda x: x.get('created_at', ''), reverse=True)
 
     def get_result(self, job_id: str) -> Optional[dict]:

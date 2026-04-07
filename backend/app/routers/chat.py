@@ -153,35 +153,20 @@ async def chat(request: ChatRequest):
 
     # ===== 意图识别：检测是否需要分析 =====
     if last_message and detect_analysis_intent(last_message):
-        # 尝试提取分析参数
-        analysis_params = extract_analysis_params(last_message)
-        if analysis_params:
-            try:
-                # 创建分析请求
-                compare_request = CompareRequest(
-                    dataset_id=analysis_params["dataset_id"],
-                    group_control=analysis_params["group_control"],
-                    group_treatment=analysis_params["group_treatment"]
-                )
-
-                # 调用分析服务（直接调用，模拟异步任务）
-                from app.routers.analysis import analysis_tasks, schedule_cleanup
-                import uuid
-
-                job_id = f"job_{uuid.uuid4().hex[:8]}"
-                analysis_tasks[job_id] = compare_request
-                schedule_cleanup(job_id)
-
-                # 返回分析任务信息给前端，让前端可以建立SSE连接
-                return ChatResponse(
-                    content=f"我已收到您的分析请求，正在为您进行差异分析...\n\n**任务ID**: `{job_id}`\n\n请稍候，我正在并行执行工具轨（统计检验）和大模型轨（AI推理）分析。",
-                    request_id=job_id
-                )
-            except Exception as e:
-                # 分析失败，继续普通对话
-                import traceback
-                print(f"Analysis intent detected but failed: {e}")
-                traceback.print_exc()
+        # 使用新的 LangChain Agent 进行分析
+        try:
+            result = await run_analysis(last_message)
+            if result.get("success"):
+                return ChatResponse(content=result.get("output", ""))
+            else:
+                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+        except HTTPException:
+            raise
+        except Exception as e:
+            import traceback
+            print(f"Analysis intent failed: {e}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
 
     # 如果启用本体搜索，将本体上下文加入
     context = None

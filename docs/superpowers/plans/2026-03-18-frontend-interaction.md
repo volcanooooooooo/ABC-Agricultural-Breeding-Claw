@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 实现天枢系统的前端交互界面和进化机制，包括流式进度推送、交互式结果卡片、反馈闭环、经验复用
+**Goal:** 实现 ABC 系统的前端交互界面和进化机制，包括流式进度推送、交互式结果卡片、反馈闭环、经验复用
 
 **Architecture:**
 - 前端: React + TypeScript + Ant Design，使用自定义hooks封装SSE和业务逻辑

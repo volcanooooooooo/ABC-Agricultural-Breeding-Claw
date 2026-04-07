@@ -11,6 +11,7 @@ from datetime import datetime
 from app.services.analysis_service import analysis_service
 from app.services.dataset_service import dataset_service
 from app.services.feedback_service import feedback_service
+from app.services.ontology_service import ontology_service
 from app.services.analysis_service import (
     run_tool_analysis, run_llm_analysis, calculate_consistency
 )
@@ -290,7 +291,7 @@ async def get_analysis_result(job_id: str):
     result = analysis_service.get_result(job_id)
     if not result:
         raise HTTPException(status_code=404, detail="Analysis result not found")
-    return result
+    return {"status": "success", "data": result}
 
 
 @router.get("/stream/{job_id}")
@@ -389,6 +390,44 @@ async def stream_analysis(job_id: str):
 
             # === 新增：保存结果到 JSON 文件 ===
             analysis_service.save_result(job_id, result)
+            # ===
+
+            # === 新增：同步基因到本体库 ===
+            yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在同步基因到本体库...\", \"progress\": 92, \"currentStep\": \"本体库同步\"}\n\n" % job_id
+            await delay(0.2)
+
+            # 收集显著基因并同步到本体库
+            all_significant_genes = []
+            for g in tool_result.significant_genes:
+                all_significant_genes.append({
+                    "gene_id": g.gene_id,
+                    "expression_change": g.expression_change,
+                    "log2fc": g.log2fc,
+                    "pvalue": g.pvalue,
+                })
+
+            if all_significant_genes:
+                try:
+                    # 使用 ontology_service 同步基因
+                    for g in all_significant_genes:
+                        ontology_service.get_or_create_gene_node(
+                            gene_id=g["gene_id"],
+                            properties={
+                                "expression_change": g["expression_change"],
+                                "log2fc": g.get("log2fc"),
+                                "pvalue": g.get("pvalue"),
+                                "source_analysis": job_id,
+                                "source_dataset": dataset.id,
+                                "source_dataset_name": dataset.name,
+                            }
+                        )
+                        ontology_service.add_analysis_result_edge(
+                            gene_id=g["gene_id"],
+                            analysis_id=job_id,
+                            expression_change=g["expression_change"]
+                        )
+                except Exception as e:
+                    print(f"Failed to sync genes to ontology: {e}")
             # ===
 
             # 步骤4: 完成 (90% -> 100%)

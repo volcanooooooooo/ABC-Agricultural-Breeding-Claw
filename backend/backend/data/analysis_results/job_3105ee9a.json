@@ -1,0 +1,139 @@
+{
+  "id": "job_3105ee9a",
+  "dataset_id": "ds_rice_20240306",
+  "dataset_name": "水稻3月6日表达数据",
+  "group_control": "control",
+  "group_treatment": "treatment",
+  "tool_result": {
+    "method": "ttest_scipy",
+    "significant_genes": [
+      {
+        "gene_id": "Gene3",
+        "expression_change": "up",
+        "log2fc": 1.6084214735451452,
+        "pvalue": 1.1087545355455453e-07,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene7",
+        "expression_change": "down",
+        "log2fc": -2.0488307625323006,
+        "pvalue": 2.2423455538369527e-08,
+        "reason": null
+      }
+    ],
+    "all_genes": [
+      {
+        "gene_id": "Gene1",
+        "expression_change": "none",
+        "log2fc": 0.045442970761167115,
+        "pvalue": 0.2878641347266908,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene2",
+        "expression_change": "none",
+        "log2fc": 0.0,
+        "pvalue": 1.0,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene3",
+        "expression_change": "up",
+        "log2fc": 1.6084214735451452,
+        "pvalue": 1.1087545355455453e-07,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene4",
+        "expression_change": "none",
+        "log2fc": -0.021479727410451507,
+        "pvalue": 0.14006598491201774,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene5",
+        "expression_change": "none",
+        "log2fc": 0.0418201756946269,
+        "pvalue": 0.2878641347266908,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene6",
+        "expression_change": "none",
+        "log2fc": -0.00634152687382655,
+        "pvalue": 0.6701799733187854,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene7",
+        "expression_change": "down",
+        "log2fc": -2.0488307625323006,
+        "pvalue": 2.2423455538369527e-08,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene8",
+        "expression_change": "none",
+        "log2fc": -0.012600036779633634,
+        "pvalue": 0.561438044250523,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene9",
+        "expression_change": "none",
+        "log2fc": 0.03952836418663759,
+        "pvalue": 0.7676439152389027,
+        "reason": null
+      },
+      {
+        "gene_id": "Gene10",
+        "expression_change": "none",
+        "log2fc": 0.014307836683883381,
+        "pvalue": 0.4676047546093974,
+        "reason": null
+      }
+    ],
+    "execution_time": 0.026723146438598633
+  },
+  "llm_result": {
+    "model": "qwen-turbo",
+    "significant_genes": [
+      {
+        "gene_id": "Gene3",
+        "expression_change": "up",
+        "log2fc": null,
+        "pvalue": null,
+        "reason": "LLM判断上调"
+      },
+      {
+        "gene_id": "Gene10",
+        "expression_change": "up",
+        "log2fc": null,
+        "pvalue": null,
+        "reason": "LLM判断上调"
+      },
+      {
+        "gene_id": "Gene7",
+        "expression_change": "down",
+        "log2fc": null,
+        "pvalue": null,
+        "reason": "LLM判断下调"
+      }
+    ],
+    "reasoning": "**上调基因**: Gene3, Gene10\n\n**下调基因**: Gene7\n\n\n**分析推理**:\n分析基因表达数据时，我比较了对照组和处理组的均值。对于上调基因，我寻找处理组均值明显高于对照组的基因。例如，Gene3的处理组均值(248.0)远高于对照组均值(81.33)，而Gene10的处理组均值(101.33)略高于对照组均值(100.33)。对于下调基因，我寻找处理组均值明显低于对照组的基因。例如，Gene7的处理组均值(101.67)明显低于对照组均值(420.67)。其他基因的均值变化较小，未达到显著差异的标准。",
+    "execution_time": 3.839967966079712
+  },
+  "consistency": {
+    "overlap": [
+      "Gene3",
+      "Gene7"
+    ],
+    "tool_only": [],
+    "llm_only": [
+      "Gene10"
+    ],
+    "overlap_rate": 1.0
+  },
+  "created_at": "2026-03-24T07:21:55.131927Z"
+}

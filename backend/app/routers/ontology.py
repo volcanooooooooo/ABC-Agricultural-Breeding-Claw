@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 from app.services.ontology_service import ontology_service
 from app.models.ontology import (
     OntologyGraph, OntologyNode, OntologyEdge, OntologyType,
     OntologyCreate, OntologyUpdate, OntologyListResponse
 )
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
 @router.get("/", response_model=OntologyGraph)
@@ -94,3 +95,64 @@ async def search_ontology(keyword: str = Query(..., description="搜索关键词
     """搜索本体节点"""
     results = ontology_service.search_nodes(keyword)
     return {"total": len(results), "items": results}
+
+
+class GeneSyncItem(BaseModel):
+    """单个基因同步项"""
+    gene_id: str
+    expression_change: str  # "up" | "down" | "none"
+    log2fc: Optional[float] = None
+    pvalue: Optional[float] = None
+
+
+class SyncAnalysisResultRequest(BaseModel):
+    """同步分析结果到本体库的请求"""
+    analysis_id: str
+    dataset_id: str
+    dataset_name: str
+    genes: List[GeneSyncItem]
+
+
+@router.post("/sync-analysis")
+async def sync_analysis_result(request: SyncAnalysisResultRequest):
+    """将分析结果中的显著基因同步到本体库"""
+    synced_genes = []
+    skipped_genes = []
+
+    for gene in request.genes:
+        # 跳过无变化的基因
+        if gene.expression_change == "none":
+            continue
+
+        try:
+            # 获取或创建基因节点
+            node = ontology_service.get_or_create_gene_node(
+                gene_id=gene.gene_id,
+                properties={
+                    "expression_change": gene.expression_change,
+                    "log2fc": gene.log2fc,
+                    "pvalue": gene.pvalue,
+                    "source_analysis": request.analysis_id,
+                    "source_dataset": request.dataset_id,
+                    "source_dataset_name": request.dataset_name,
+                }
+            )
+
+            # 添加与分析结果的关联边
+            ontology_service.add_analysis_result_edge(
+                gene_id=gene.gene_id,
+                analysis_id=request.analysis_id,
+                expression_change=gene.expression_change
+            )
+
+            synced_genes.append(gene.gene_id)
+        except Exception as e:
+            skipped_genes.append({"gene_id": gene.gene_id, "error": str(e)})
+
+    return {
+        "status": "success",
+        "synced_count": len(synced_genes),
+        "skipped_count": len(skipped_genes),
+        "synced_genes": synced_genes,
+        "skipped_genes": skipped_genes,
+    }

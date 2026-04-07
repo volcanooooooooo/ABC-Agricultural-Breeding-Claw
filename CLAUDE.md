@@ -1,12 +1,18 @@
-# CLAUDE.md - 育种 AI 科学家系统开发规范
+# CLAUDE.md - ABC: Agricultural Breeding Claw 开发规范
+
 ## 对话规范
 - **称呼规范**: 每次跟我对话的时候请叫我**主人**
 
 ## 项目概述
 
-- **项目名称**: 育种 AI 科学家系统
+- **项目名称**: ABC: Agricultural Breeding Claw (农业育种智能助手)
 - **类型**: Web 应用（前后端分离）
-- **目标**: 通过自然语言交互完成育种研究任务，包括论文研读、自动化数据分析、本体可视化与编辑
+- **目标**: 通过自然语言交互完成育种研究任务，包括自然语言数据分析、本体可视化与编辑
+
+### 核心功能
+- **自然语言数据分析**: 用户可通过自然语言或命令调用 LangChain Agent + Tools 进行差异表达分析
+- **双轨分析**: 支持传统统计工具和 LLM 大模型双轨分析对比
+- **本体管理**: 基因本体可视化、编辑和检索
 
 ## 技术栈
 
@@ -21,6 +27,47 @@
 - **构建工具**: Vite
 - **UI 组件**: Ant Design
 - **可视化**: React Flow, Recharts
+
+## 文件结构
+
+```
+breeding-scientist/
+├── backend/
+│   ├── app/
+│   │   ├── main.py          # FastAPI 应用入口
+│   │   ├── config.py        # 配置管理
+│   │   ├── models/          # Pydantic 模型
+│   │   ├── routers/         # API 路由
+│   │   ├── services/        # 业务逻辑
+│   │   ├── agent/           # LangChain Agent (分析代理)
+│   │   ├── tools/           # LangChain Tools (分析工具)
+│   │   └── utils/           # 工具函数
+│   ├── data/
+│   │   ├── datasets/        # 数据集文件
+│   │   └── datasets.json    # 数据集元数据
+│   └── requirements.txt
+│
+├── src/                     # 前端源码（项目根目录）
+│   ├── api/                # API 客户端
+│   ├── components/          # 可复用组件
+│   ├── pages/              # 页面组件
+│   └── App.tsx
+│
+├── package.json
+├── vite.config.ts
+└── docs/
+    └── superpowers/
+        ├── specs/           # 设计文档
+        └── plans/            # 实现计划
+```
+
+### 关键模块
+
+#### Agent 层 (backend/app/agent/)
+- `analysis_agent.py`: LangChain ReAct Agent，负责自然语言理解和工具调用
+
+#### Tools 层 (backend/app/tools/)
+- `differential.py`: 差异表达分析工具，使用 t-test 统计方法
 
 ## 代码规范
 
@@ -42,38 +89,6 @@
 - 组件 Props 使用接口定义
 - 使用 .tsx / .ts 文件扩展名
 
-## 文件结构
-
-```
-breeding-scientist/
-├── backend/
-│   ├── app/
-│   │   ├── main.py          # FastAPI 应用入口
-│   │   ├── config.py        # 配置管理
-│   │   ├── models/          # Pydantic 模型
-│   │   ├── routers/         # API 路由
-│   │   ├── services/        # 业务逻辑
-│   │   └── utils/           # 工具函数
-│   ├── data/                # 数据文件
-│   └── requirements.txt
-│
-├── frontend/
-│   ├── src/
-│   │   ├── api/             # API 客户端
-│   │   ├── components/      # 可复用组件
-│   │   ├── pages/           # 页面组件
-│   │   ├── styles/          # 样式文件
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── package.json
-│   └── vite.config.ts
-│
-└── docs/
-    └── superpowers/
-        ├── specs/           # 设计文档
-        └── plans/           # 实现计划
-```
-
 ## Git 提交规范
 
 ### 提交类型
@@ -94,11 +109,11 @@ breeding-scientist/
 
 ### 示例
 ```
-feat: add ontology visualization with React Flow
+feat: add differential expression analysis tool
 
-- 支持树形视图和关系图展示
-- 添加节点搜索和过滤功能
-- 支持节点详情查看
+- 支持 t-test 统计分析
+- 支持 log2FC 和 p-value 阈值筛选
+- 返回显著差异基因列表和火山图数据
 ```
 
 ## API 设计规范
@@ -116,6 +131,45 @@ feat: add ontology visualization with React Flow
   "message": "可选的成功/错误信息"
 }
 ```
+
+### 核心 API
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/chat/` | POST | 自然语言对话/分析 |
+| `/api/datasets` | GET | 获取数据集列表 |
+| `/api/analysis/compare` | POST | 双轨对比分析 |
+| `/api/analysis/stream/{job_id}` | GET | SSE 流式分析结果 |
+| `/api/ontology/` | GET | 获取本体图谱 |
+
+## 自然语言分析功能
+
+### 使用方式
+
+**命令格式：**
+```
+/analyze --control WT --treatment osbzip23
+/analyze --control WT --treatment osbzip23 --pvalue 0.01 --log2fc 2
+```
+
+**自然语言格式：**
+```
+分析 WT 和 osbzip23 的差异表达基因
+帮我比较处理组和对照组的差异
+```
+
+### 分析工具参数
+- `dataset_path`: 数据集路径，默认 `datasets/GSE242459_Count_matrix.txt`
+- `control_group`: 对照组名称（如 "WT"）
+- `treatment_group`: 处理组名称（如 "osbzip23"）
+- `pvalue_threshold`: P 值阈值，默认 0.05
+- `log2fc_threshold`: log2FC 阈值，默认 1.0
+
+### 数据集 GSE242459
+- 位置: `backend/data/datasets/GSE242459_Count_matrix.txt`
+- 分组:
+  - WT (对照): DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
+  - osbzip23 (处理): DS_osbzip23_rep1, DS_osbzip23_rep2
 
 ## 测试规范
 
@@ -140,10 +194,9 @@ feat: add ontology visualization with React Flow
 # 后端
 cd backend
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+PYTHONPATH=backend uvicorn app.main:app --reload --port 8003
 
 # 前端
-cd frontend
 npm install
 npm run dev
 ```
@@ -158,3 +211,7 @@ npm run dev
 - 不要修改已商定的设计文档，如需变更请先与用户确认
 - 保持代码简洁，避免过度工程化
 - MVP 阶段优先实现核心功能，非必要功能后续迭代
+- 使用 /context7 来实现代码
+- 多个 datasets.json 文件存在于不同路径，确保编辑正确的文件：
+  - `backend/data/datasets.json` - 主配置
+  - `backend/backend/data/datasets.json` - 工作树配置
