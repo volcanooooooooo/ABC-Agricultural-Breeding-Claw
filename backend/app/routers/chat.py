@@ -1,50 +1,117 @@
+import asyncio
+import json
 import traceback
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
+from openai import OpenAI
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+
+from app.agent.analysis_agent import TOOLS, _dispatch_tool
+from app.config import settings
 from app.services.llm_service import llm_service
 from app.services.ontology_service import ontology_service
-from app.agent.analysis_agent import run_analysis
-
-# 延迟导入，避免循环依赖
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from app.routers.analysis import analysis_tasks, schedule_cleanup
 
 router = APIRouter()
 
-# 分析命令前缀 - Agent 自己理解自然语言，这里只做命令前缀快速检测
-ANALYSIS_COMMANDS = ["/analyze", "/diff", "/analyse"]
+# ── 系统提示 ──────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
+你擅长基因表达数据分析，可以调用工具进行差异表达分析。
 
-# 分析意图关键词 - 简化版，让 Agent 处理语义理解
-ANALYSIS_KEYWORDS = [
-    "分析", "差异表达", "差异基因", "比较",
-    "/analyze", "/diff", "log2fc", "deseq",
-]
+当用户请求分析时：
+1. 理解用户意图，确定对照组和处理组
+2. 调用 differential_expression_analysis 工具
+3. 用中文解读分析结果，包括：显著差异基因数量、上调/下调情况、关键基因
+
+数据集信息：
+- 默认数据集：GSE242459（水稻基因表达数据）
+- 对照组（WT）：DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
+- 处理组（osbzip23）：DS_osbzip23_rep1, DS_osbzip23_rep2
+
+命令格式示例：
+- /analyze --control WT --treatment osbzip23
+- 分析 WT 和 osbzip23 的差异表达基因
+
+当用户请求富集分析时：
+1. 如果已有差异分析结果，从 significant_genes 提取所有 gene_id 用逗号拼接，调用 enrichment_analysis 工具。
+2. 如果用户直接提供基因 ID，直接调用 enrichment_analysis。
+3. 工具返回后用中文解读 top 5 KEGG 通路和 top 5 GO term。
+4. 回复末尾追加（JSON 必须单行）：<!-- ENRICHMENT_DATA: {完整JSON} -->"""
 
 
-def should_use_agent(message: str) -> bool:
-    """判断是否应该交给 Agent 处理（命令或分析意图）。"""
-    if not message:
-        return False
-    msg_lower = message.lower().strip()
-    for cmd in ANALYSIS_COMMANDS:
-        if msg_lower.startswith(cmd):
-            return True
-    for kw in ANALYSIS_KEYWORDS:
-        if kw.lower() in msg_lower:
-            return True
-    return False
+def _get_client() -> OpenAI:
+    return OpenAI(
+        api_key=settings.qwen_api_key,
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+
+def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
+    """Agent Loop：LLM → tool_use → 结果回传 → 循环，直到普通回答。"""
+    client = _get_client()
+
+    # 如果没有 system 消息，prepend SYSTEM_PROMPT
+    if not messages or messages[0].get("role") != "system":
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
+
+    for _ in range(max_rounds):
+        response = client.chat.completions.create(
+            model=settings.qwen_model,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+        )
+
+        choice = response.choices[0]
+        assistant_msg = choice.message
+
+        # 追加 assistant 回复到历史
+        tool_calls_payload = [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+            }
+            for tc in (assistant_msg.tool_calls or [])
+        ]
+        msg: Dict[str, Any] = {"role": "assistant", "content": assistant_msg.content or ""}
+        if tool_calls_payload:
+            msg["tool_calls"] = tool_calls_payload
+        messages.append(msg)
+
+        # 没有工具调用 → 返回最终答案
+        if choice.finish_reason != "tool_calls" or not assistant_msg.tool_calls:
+            return assistant_msg.content or ""
+
+        # 执行所有工具调用
+        for tool_call in assistant_msg.tool_calls:
+            name = tool_call.function.name
+            try:
+                arguments = json.loads(tool_call.function.arguments)
+            except json.JSONDecodeError:
+                arguments = {}
+            result = _dispatch_tool(name, arguments)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+    # 超过最大轮数
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("content"):
+            return msg["content"]
+    return "分析超过最大轮数限制，请重试。"
 
 
 class ChatMessage(BaseModel):
-    """聊天消息"""
     role: str
     content: str
 
 
 class ChatRequest(BaseModel):
-    """聊天请求"""
     messages: List[ChatMessage]
     system_prompt: Optional[str] = None
     use_ontology: bool = False
@@ -53,7 +120,6 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """聊天响应"""
     content: str
     usage: Optional[Dict[str, Any]] = None
     request_id: Optional[str] = None
@@ -61,61 +127,18 @@ class ChatResponse(BaseModel):
 
 @router.post("/", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """通用对话接口"""
-    # 转换消息格式
+    """通用对话接口 — 所有消息统一走 Agent Loop。"""
+    if not settings.qwen_api_key:
+        raise HTTPException(status_code=500, detail="QWEN_API_KEY 未配置")
+
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
-    last_message = messages[-1]["content"] if messages else ""
 
-    # ===== Agent Loop：命令或分析意图统一交给 Agent 处理 =====
-    if last_message and should_use_agent(last_message):
-        try:
-            result = await run_analysis(last_message)
-            if result.get("success"):
-                return ChatResponse(content=result.get("output", ""))
-            else:
-                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Agent loop failed: {e}")
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # 如果启用本体搜索，将本体上下文加入
-    context = None
-    if request.use_ontology and request.messages:
-        last_message = request.messages[-1].content
-        # 搜索本体中相关内容
-        ontology_results = ontology_service.search_nodes(last_message)
-        if ontology_results:
-            context = "\n".join([
-                f"- {n.name}: {n.properties.get('description', '')}"
-                for n in ontology_results[:5]
-            ])
-
-    # 调用 LLM
-    if context:
-        result = await llm_service.chat_with_context(
-            user_message=messages[-1]["content"],
-            system_prompt=request.system_prompt,
-            context=context
-        )
-    else:
-        # 直接调用
-        result = await llm_service.chat(
-            messages=messages,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens
-        )
-
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
-
-    return ChatResponse(
-        content=result.get("content", ""),
-        usage=result.get("usage"),
-        request_id=result.get("request_id")
-    )
+    try:
+        content = await asyncio.to_thread(_agent_loop, messages)
+        return ChatResponse(content=content)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/breeding")
@@ -125,7 +148,6 @@ async def breeding_chat(request: ChatRequest):
 你擅长回答关于作物育种、遗传学、分子标记辅助选择、杂交育种等方面的问题。
 请用专业但易懂的语言回答问题。"""
 
-    # 搜索本体获取相关上下文
     context = None
     if request.messages:
         last_message = request.messages[-1].content
