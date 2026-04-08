@@ -639,6 +639,20 @@ export default function ChatPage() {
       ],
       output: '返回上调/下调 TOP10 基因表格、火山图数据及完整 CSV 下载',
     },
+    {
+      name: 'enrichment_analysis',
+      label: 'KEGG/GO 富集分析',
+      icon: '🔬',
+      description: '对基因列表进行 KEGG 通路富集分析和 GO 功能富集分析，支持差异分析结果串联或直接输入基因 ID。',
+      usage: '对以下基因做富集分析：OsMH_01G0000400,OsMH_02G0001200',
+      params: [
+        { name: 'gene_list', desc: '逗号分隔的基因 ID 列表' },
+        { name: 'analysis_type', desc: '"GO" | "KEGG" | "both"，默认 both' },
+        { name: 'pvalue_cutoff', desc: 'P 值阈值，默认 0.05' },
+        { name: 'organism', desc: '物种名称，默认 oryza sativa（水稻）' },
+      ],
+      output: '返回 KEGG/GO 富集通路气泡图和可排序结果表格',
+    },
   ]
 
   // 渲染消息内容
