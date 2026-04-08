@@ -18,6 +18,7 @@ from app.services.analysis_service import (
 from app.models.analysis import (
     CompareRequest, CompareResponse, AnalysisResult, LLMResult
 )
+from app.tools.enrichment import enrichment_analysis
 
 router = APIRouter()
 
@@ -67,6 +68,13 @@ class TopPerformersRequest(BaseModel):
     trait: str
     top_n: int = 10
     ascending: bool = False
+
+
+class EnrichmentRequest(BaseModel):
+    """富集分析请求"""
+    gene_list: List[str]
+    analysis_type: str = "both"
+    pvalue_cutoff: float = 0.05
 
 
 @router.post("/descriptive")
@@ -209,6 +217,26 @@ async def get_analysis_methods():
             {"name": "top-performers", "description": "最优个体选择"}
         ]
     }
+
+
+@router.post("/enrichment")
+async def run_enrichment(request: EnrichmentRequest):
+    """直接调用富集分析（不经过 Agent 循环）"""
+    if not request.gene_list:
+        raise HTTPException(status_code=400, detail="gene_list is empty")
+
+    gene_list_str = ",".join(request.gene_list)
+    raw = enrichment_analysis(
+        gene_list=gene_list_str,
+        analysis_type=request.analysis_type,
+        pvalue_cutoff=request.pvalue_cutoff,
+    )
+    result = json.loads(raw)
+
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {"status": "success", "data": result}
 
 
 # ============ 双轨分析 API 和 SSE ============
