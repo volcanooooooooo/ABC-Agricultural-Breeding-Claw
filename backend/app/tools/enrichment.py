@@ -105,9 +105,9 @@ def _run_go_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[str,
 
     try:
         goeaobj = GOEnrichmentStudy(
-            pop=_go_background_genes,
-            ns2assoc=_gene2go,
-            godag=_go_dag,
+            _go_background_genes,
+            _gene2go,
+            _go_dag,
             propagate_counts=True,
             alpha=pvalue_cutoff,
             methods=["fdr_bh"],
