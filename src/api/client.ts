@@ -183,6 +183,13 @@ export const analysisApi = {
   getResult: (id: string) => api.get<ApiResponse<AnalysisResult>>(`/analysis/results/${id}`),
   // 取消分析
   cancel: (jobId: string) => api.post<ApiResponse<{ status: string; message: string }>>(`/analysis/cancel/${jobId}`),
+  // 富集分析（直接调用，不经过 Agent）
+  runEnrichment: (geneList: string[], analysisType?: string, pvalueCutoff?: number) =>
+    api.post<ApiResponse<any>>('/analysis/enrichment', {
+      gene_list: geneList,
+      analysis_type: analysisType ?? 'both',
+      pvalue_cutoff: pvalueCutoff ?? 0.05,
+    }),
 }
 
 // Dataset types
