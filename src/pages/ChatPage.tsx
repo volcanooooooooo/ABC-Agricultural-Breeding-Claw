@@ -160,9 +160,16 @@ export default function ChatPage() {
     }))
   }
 
-  // 识别分析意图
+  // 识别富集分析意图（优先级高于差异分析）
+  const detectEnrichmentIntent = (text: string): boolean => {
+    const keywords = ['富集', 'kegg', 'go分析', 'go富集', 'pathway', '通路分析']
+    return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
+  }
+
+  // 识别差异表达分析意图（排除富集分析）
   const detectAnalysisIntent = (text: string): boolean => {
-    const keywords = ['分析', '差异', '对比', '双轨', 'tool', 'llm', 'deseq', 't检验', '表达']
+    if (detectEnrichmentIntent(text)) return false
+    const keywords = ['差异表达', '差异基因', '差异分析', '/analyze', '/diff', '/analyse', 'deseq', 't检验', '双轨']
     return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
   }
 
