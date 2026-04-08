@@ -43,11 +43,21 @@ _BIOMART_GO_XML = """<?xml version="1.0" encoding="UTF-8"?>
   </Dataset>
 </Query>"""
 
-_BIOMART_ENTREZ_XML = """<?xml version="1.0" encoding="UTF-8"?>
+_BIOMART_MH63_HOMOLOG_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
 <Query virtualSchemaName="plants_mart" formatter="TSV" header="0"
        uniqueRows="1" count="" datasetConfigVersion="0.6">
   <Dataset name="osmh63_eg_gene" interface="default">
+    <Attribute name="ensembl_gene_id"/>
+    <Attribute name="osativa_eg_homolog_ensembl_gene"/>
+  </Dataset>
+</Query>"""
+
+_BIOMART_JAPONICA_ENTREZ_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Query>
+<Query virtualSchemaName="plants_mart" formatter="TSV" header="0"
+       uniqueRows="1" count="" datasetConfigVersion="0.6">
+  <Dataset name="osativa_eg_gene" interface="default">
     <Attribute name="ensembl_gene_id"/>
     <Attribute name="entrezgene_id"/>
   </Dataset>
@@ -146,20 +156,37 @@ def download_kegg_annotation(client: httpx.Client) -> None:
         print(f"[skip] {out_path} already exists")
         return
 
-    # Step 1: BioMart — MH63 gene → Entrez ID (direct, no japonica intermediate)
-    print("[download] MH63 gene → Entrez ID mapping from BioMart ...")
-    entrez_rows = _biomart_query(_BIOMART_ENTREZ_XML, client)
-    entrez_to_mh63: dict[str, str] = {}  # entrez_id → mh63_gene_id
+    # Step 1: BioMart — MH63 gene → japonica ortholog
+    print("[download] MH63 → japonica ortholog mapping from BioMart ...")
+    homolog_rows = _biomart_query(_BIOMART_MH63_HOMOLOG_XML, client)
+    japonica_to_mh63: dict[str, str] = {}
+    for row in homolog_rows:
+        if len(row) < 2:
+            continue
+        mh63_id, jap_id = row[0].strip(), row[1].strip()
+        if mh63_id and jap_id:
+            japonica_to_mh63[jap_id] = mh63_id
+    print(f"[info] {len(japonica_to_mh63)} japonica → MH63 ortholog mappings")
+
+    # Step 2: BioMart — japonica gene → Entrez ID
+    print("[download] japonica gene → Entrez ID mapping from BioMart ...")
+    entrez_rows = _biomart_query(_BIOMART_JAPONICA_ENTREZ_XML, client)
+    entrez_to_japonica: dict[str, str] = {}
     for row in entrez_rows:
         if len(row) < 2:
             continue
-        mh63_id, entrez_id = row[0].strip(), row[1].strip()
-        if mh63_id and entrez_id:
-            entrez_to_mh63[entrez_id] = mh63_id
-    print(f"[info] {len(entrez_to_mh63)} entrez → MH63 mappings")
+        jap_id, entrez_id = row[0].strip(), row[1].strip()
+        if jap_id and entrez_id:
+            entrez_to_japonica[entrez_id] = jap_id
+    print(f"[info] {len(entrez_to_japonica)} entrez → japonica mappings")
 
-    if not entrez_to_mh63:
-        print("[warn] no Entrez mappings found, KEGG annotation will be empty")
+    # Build entrez → MH63 (entrez → japonica → MH63)
+    entrez_to_mh63: dict[str, str] = {}
+    for entrez_id, jap_id in entrez_to_japonica.items():
+        mh63_id = japonica_to_mh63.get(jap_id)
+        if mh63_id:
+            entrez_to_mh63[entrez_id] = mh63_id
+    print(f"[info] {len(entrez_to_mh63)} entrez → MH63 mappings (via japonica)")
 
     # Step 2: KEGG — bulk get all osa gene→pathway links
     print(f"[download] all osa gene→pathway links from KEGG (bulk) ...")
