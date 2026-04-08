@@ -52,15 +52,29 @@ _BIOMART_ENTREZ_XML = """<?xml version="1.0" encoding="UTF-8"?>
 </Query>"""
 
 
-def _biomart_query(xml: str, client: httpx.Client) -> list[list[str]]:
-    """POST a BioMart XML query and return parsed TSV rows."""
-    resp = client.post(BIOMART_URL, data={"query": xml}, timeout=300)
-    resp.raise_for_status()
-    rows = []
-    for line in resp.text.splitlines():
-        if line.strip():
-            rows.append(line.split("\t"))
-    return rows
+def _biomart_query(xml: str, client: httpx.Client, max_retries: int = 3) -> list[list[str]]:
+    """Query BioMart via GET (more proxy-friendly) with retry."""
+    for attempt in range(max_retries):
+        try:
+            resp = client.get(
+                BIOMART_URL,
+                params={"query": xml.strip()},
+                timeout=300,
+            )
+            resp.raise_for_status()
+            rows = []
+            for line in resp.text.splitlines():
+                if line.strip():
+                    rows.append(line.split("\t"))
+            return rows
+        except (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectError) as e:
+            if attempt < max_retries - 1:
+                wait = (attempt + 1) * 10
+                print(f"  [retry] attempt {attempt + 1} failed: {e}, retrying in {wait}s ...")
+                time.sleep(wait)
+            else:
+                raise
+    return []
 
 
 # ---------------------------------------------------------------------------
