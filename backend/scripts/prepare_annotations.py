@@ -7,9 +7,13 @@ Usage:
 import csv
 import os
 import time
+import warnings
 from pathlib import Path
 
 import httpx
+
+# Suppress SSL warnings when using verify=False (proxy environments)
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -21,9 +25,7 @@ DATA_DIR = SCRIPT_DIR.parent / "data" / "annotations"
 GO_OBO_URL = "http://purl.obolibrary.org/obo/go/go-basic.obo"
 BIOMART_URL = "https://plants.ensembl.org/biomart/martservice"
 KEGG_LIST_URL = "https://rest.kegg.jp/list/pathway/osa"
-KEGG_LINK_URL = "https://rest.kegg.jp/link/genes/{pathway_id}"
-
-KEGG_RATE_LIMIT = 1.0 / 3  # seconds between requests (~3 req/s)
+KEGG_LINK_ALL_URL = "https://rest.kegg.jp/link/pathway/osa"  # bulk: all osa gene→pathway
 
 # ---------------------------------------------------------------------------
 # BioMart XML query helpers
@@ -41,11 +43,21 @@ _BIOMART_GO_XML = """<?xml version="1.0" encoding="UTF-8"?>
   </Dataset>
 </Query>"""
 
-_BIOMART_ENTREZ_XML = """<?xml version="1.0" encoding="UTF-8"?>
+_BIOMART_MH63_HOMOLOG_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
 <Query virtualSchemaName="plants_mart" formatter="TSV" header="0"
        uniqueRows="1" count="" datasetConfigVersion="0.6">
   <Dataset name="osativa_mh63_eg_gene" interface="default">
+    <Attribute name="ensembl_gene_id"/>
+    <Attribute name="osativa_eg_homolog_ensembl_gene"/>
+  </Dataset>
+</Query>"""
+
+_BIOMART_JAPONICA_ENTREZ_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Query>
+<Query virtualSchemaName="plants_mart" formatter="TSV" header="0"
+       uniqueRows="1" count="" datasetConfigVersion="0.6">
+  <Dataset name="osativa_eg_gene" interface="default">
     <Attribute name="ensembl_gene_id"/>
     <Attribute name="entrezgene_id"/>
   </Dataset>
@@ -75,6 +87,26 @@ def _biomart_query(xml: str, client: httpx.Client, max_retries: int = 3) -> list
             else:
                 raise
     return []
+
+
+def _kegg_get(url: str, client: httpx.Client, max_retries: int = 3) -> httpx.Response | None:
+    """GET a KEGG REST API URL with retry for proxy/SSL issues."""
+    for attempt in range(max_retries):
+        try:
+            resp = client.get(url, timeout=120)
+            resp.raise_for_status()
+            return resp
+        except (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectError) as e:
+            if attempt < max_retries - 1:
+                wait = (attempt + 1) * 10
+                print(f"  [retry] attempt {attempt + 1} failed: {e}, retrying in {wait}s ...")
+                time.sleep(wait)
+            else:
+                print(f"  [error] all {max_retries} attempts failed: {e}")
+                return None
+        except httpx.HTTPStatusError as e:
+            print(f"  [error] HTTP {e.response.status_code} for {url}")
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -124,75 +156,94 @@ def download_kegg_annotation(client: httpx.Client) -> None:
         print(f"[skip] {out_path} already exists")
         return
 
-    # Step 1: get MH63 gene_id -> entrez_id mapping from BioMart
-    print("[download] MH63 gene_id -> Entrez ID mapping from BioMart ...")
-    entrez_rows = _biomart_query(_BIOMART_ENTREZ_XML, client)
-    entrez_map: dict[str, str] = {}  # entrez_id -> gene_id
+    # Step 1: BioMart — MH63 gene → japonica ortholog
+    print("[download] MH63 → japonica ortholog mapping from BioMart ...")
+    homolog_rows = _biomart_query(_BIOMART_MH63_HOMOLOG_XML, client)
+    mh63_to_japonica: dict[str, str] = {}  # mh63_gene → japonica_gene
+    japonica_to_mh63: dict[str, str] = {}  # japonica_gene → mh63_gene
+    for row in homolog_rows:
+        if len(row) < 2:
+            continue
+        mh63_id, jap_id = row[0].strip(), row[1].strip()
+        if mh63_id and jap_id:
+            mh63_to_japonica[mh63_id] = jap_id
+            japonica_to_mh63[jap_id] = mh63_id
+    print(f"[info] {len(japonica_to_mh63)} japonica → MH63 ortholog mappings")
+
+    # Step 2: BioMart — japonica gene → Entrez ID
+    print("[download] japonica gene → Entrez ID mapping from BioMart ...")
+    entrez_rows = _biomart_query(_BIOMART_JAPONICA_ENTREZ_XML, client)
+    entrez_to_japonica: dict[str, str] = {}  # entrez → japonica_gene
     for row in entrez_rows:
         if len(row) < 2:
             continue
-        gene_id, entrez_id = row[0].strip(), row[1].strip()
-        if gene_id and entrez_id:
-            entrez_map[entrez_id] = gene_id
-    print(f"[info] {len(entrez_map)} entrez->gene_id mappings loaded")
+        jap_id, entrez_id = row[0].strip(), row[1].strip()
+        if jap_id and entrez_id:
+            entrez_to_japonica[entrez_id] = jap_id
+    print(f"[info] {len(entrez_to_japonica)} entrez → japonica mappings")
 
-    # Step 2: get rice KEGG pathway list
-    print(f"[download] KEGG pathway list from {KEGG_LIST_URL}")
-    time.sleep(KEGG_RATE_LIMIT)
-    resp = client.get(KEGG_LIST_URL, timeout=60)
-    resp.raise_for_status()
-    pathways: list[tuple[str, str]] = []  # (pathway_id, pathway_name)
+    # Build entrez → MH63 mapping (entrez → japonica → MH63)
+    entrez_to_mh63: dict[str, str] = {}
+    for entrez_id, jap_id in entrez_to_japonica.items():
+        mh63_id = japonica_to_mh63.get(jap_id)
+        if mh63_id:
+            entrez_to_mh63[entrez_id] = mh63_id
+    print(f"[info] {len(entrez_to_mh63)} entrez → MH63 mappings (via japonica)")
+
+    # Step 3: KEGG — bulk get all osa gene→pathway links
+    print(f"[download] all osa gene→pathway links from KEGG (bulk) ...")
+    time.sleep(1)
+    resp = _kegg_get(KEGG_LINK_ALL_URL, client)
+    if resp is None:
+        print("[error] failed to fetch KEGG gene→pathway links")
+        # Write empty file
+        with open(out_path, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f, delimiter="\t").writerow(["gene_id", "kegg_pathway_id", "kegg_pathway_name"])
+        return
+
+    # Parse: each line is "osa:ENTREZ_ID\tpath:osaXXXXX"
+    entrez_pathway: list[tuple[str, str]] = []  # (entrez_id, pathway_id)
     for line in resp.text.splitlines():
         if not line.strip():
             continue
-        parts = line.split("\t", 1)
-        if len(parts) == 2:
-            pathway_id = parts[0].strip()   # e.g. "path:osa00010"
-            pathway_name = parts[1].strip()
-            pathways.append((pathway_id, pathway_name))
-    print(f"[info] {len(pathways)} KEGG pathways found")
-
-    # Step 3: for each pathway, get genes and map to MH63 gene IDs
-    records: list[tuple[str, str, str]] = []  # (gene_id, pathway_id, pathway_name)
-    for i, (pathway_id, pathway_name) in enumerate(pathways):
-        # pathway_id is like "path:osa00010"; KEGG link endpoint uses "osa00010"
-        short_id = pathway_id.replace("path:", "")
-        url = KEGG_LINK_URL.format(pathway_id=short_id)
-        time.sleep(KEGG_RATE_LIMIT)
-        try:
-            resp = client.get(url, timeout=60)
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            print(f"[warn] {short_id}: HTTP {exc.response.status_code}, skipping")
+        parts = line.split("\t")
+        if len(parts) < 2:
             continue
-        except httpx.RequestError as exc:
-            print(f"[warn] {short_id}: request error {exc}, skipping")
-            continue
+        entrez_id = parts[0].strip().replace("osa:", "")
+        pathway_id = parts[1].strip().replace("path:", "")
+        entrez_pathway.append((entrez_id, pathway_id))
+    print(f"[info] {len(entrez_pathway)} gene-pathway links from KEGG")
 
+    # Step 4: KEGG — get pathway names
+    print(f"[download] KEGG pathway names ...")
+    time.sleep(1)
+    resp = _kegg_get(KEGG_LIST_URL, client)
+    pathway_names: dict[str, str] = {}
+    if resp:
         for line in resp.text.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\t")
-            if len(parts) < 2:
-                continue
-            # gene entry looks like "osa:4324567"
-            kegg_gene = parts[1].strip()
-            entrez_id = kegg_gene.split(":")[-1]
-            gene_id = entrez_map.get(entrez_id)
-            if gene_id:
-                records.append((gene_id, short_id, pathway_name))
+            parts = line.split("\t", 1)
+            if len(parts) == 2:
+                pw_id = parts[0].strip().replace("path:", "")
+                pw_name = parts[1].strip()
+                pathway_names[pw_id] = pw_name
+    print(f"[info] {len(pathway_names)} pathway names loaded")
 
-        if (i + 1) % 20 == 0:
-            print(f"[progress] {i + 1}/{len(pathways)} pathways processed ...")
-
-    print(f"[info] {len(records)} gene-pathway associations found")
+    # Step 5: Join — entrez → MH63, pathway_id → name
+    records: list[tuple[str, str, str]] = []
+    for entrez_id, pathway_id in entrez_pathway:
+        mh63_id = entrez_to_mh63.get(entrez_id)
+        if mh63_id:
+            pw_name = pathway_names.get(pathway_id, pathway_id)
+            records.append((mh63_id, pathway_id, pw_name))
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(["gene_id", "kegg_pathway_id", "kegg_pathway_name"])
-        for gene_id, pathway_id, pathway_name in records:
-            writer.writerow([gene_id, pathway_id, pathway_name])
-    print(f"[done] saved {out_path} ({len(records)} rows)")
+        for row in records:
+            writer.writerow(row)
+    print(f"[done] saved {out_path} ({len(records)} gene-pathway pairs)")
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +255,7 @@ def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[info] annotation directory: {DATA_DIR}")
 
-    with httpx.Client(follow_redirects=True) as client:
+    with httpx.Client(follow_redirects=True, verify=False) as client:
         download_go_obo(client)
         download_go_annotation(client)
         download_kegg_annotation(client)
