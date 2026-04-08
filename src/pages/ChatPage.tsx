@@ -19,7 +19,7 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
@@ -499,6 +499,18 @@ export default function ChatPage() {
                 : msg
             )
           )
+          // 若有显著基因，追加富集分析提示
+          const sigGenes = data.result?.tool_result?.significant_genes ?? []
+          if (sigGenes.length > 0) {
+            updateCurrentSession(msgs => [...msgs, {
+              id: `${Date.now()}-enrichment-prompt`,
+              role: 'assistant' as const,
+              type: 'enrichment-prompt' as const,
+              content: '',
+              analysisResult: data.result,
+              timestamp: new Date().toString(),
+            }])
+          }
           eventSource.close()
           setCurrentJobId(null)
         } else if (data.status === 'error') {
