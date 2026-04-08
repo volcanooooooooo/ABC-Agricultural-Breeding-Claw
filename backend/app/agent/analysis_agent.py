@@ -19,14 +19,19 @@ from app.tools.differential import (
     DIFFERENTIAL_ANALYSIS_SCHEMA,
     differential_expression_analysis,
 )
+from app.tools.enrichment import (
+    ENRICHMENT_ANALYSIS_SCHEMA,
+    enrichment_analysis,
+)
 
 # ── 工具注册表：名称 → 可调用函数 ──────────────────────────────────────────
 TOOL_HANDLERS = {
     "differential_expression_analysis": differential_expression_analysis,
+    "enrichment_analysis": enrichment_analysis,
 }
 
 # ── LLM function calling 工具描述列表 ─────────────────────────────────────
-TOOLS = [DIFFERENTIAL_ANALYSIS_SCHEMA]
+TOOLS = [DIFFERENTIAL_ANALYSIS_SCHEMA, ENRICHMENT_ANALYSIS_SCHEMA]
 
 # ── 系统提示 ──────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
@@ -44,7 +49,13 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 
 命令格式示例：
 - /analyze --control WT --treatment osbzip23
-- 分析 WT 和 osbzip23 的差异表达基因"""
+- 分析 WT 和 osbzip23 的差异表达基因
+
+当用户请求富集分析时：
+1. 如果已有差异分析结果，从 significant_genes 提取所有 gene_id 用逗号拼接，调用 enrichment_analysis 工具。
+2. 如果用户直接提供基因 ID，直接调用 enrichment_analysis。
+3. 工具返回后用中文解读 top 5 KEGG 通路和 top 5 GO term。
+4. 回复末尾追加（JSON 必须单行）：<!-- ENRICHMENT_DATA: {完整JSON} -->"""
 
 
 def _get_client() -> OpenAI:
