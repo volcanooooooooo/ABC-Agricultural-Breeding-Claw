@@ -33,9 +33,8 @@ export default function AnalysisPage() {
     setDatasetsLoading(true);
     try {
       const response = await datasetApi.getAll();
-      if (response.data.status === 'success') {
-        setDatasets(response.data.data);
-      }
+      // API 返回直接数组
+      setDatasets(response.data);
     } catch (error) {
       console.error('Failed to load datasets:', error);
     } finally {

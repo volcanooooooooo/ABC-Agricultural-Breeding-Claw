@@ -1,6 +1,6 @@
 // src/components/AnalysisProgress.tsx
-import { Card, Progress, Spin, Tag } from 'antd'
-import { LoadingOutlined, CheckCircleOutlined, ThunderboltOutlined, RobotOutlined } from '@ant-design/icons'
+import { Card, Progress, Spin, Tag, Button } from 'antd'
+import { LoadingOutlined, CheckCircleOutlined, ThunderboltOutlined, RobotOutlined, StopOutlined } from '@ant-design/icons'
 
 interface ProgressData {
   track: 'tool' | 'llm' | 'init' | 'consistency'
@@ -13,6 +13,9 @@ interface ProgressData {
 interface AnalysisProgressProps {
   progress: ProgressData | null
   isAnalyzing: boolean
+  onCancel?: () => void
+  isCancelling?: boolean
+  canCancel?: boolean
 }
 
 // 轨道状态追踪
@@ -23,16 +26,16 @@ const trackStates = {
   consistency: { progress: 0, status: '等待中...', currentStep: '' },
 }
 
-export function AnalysisProgress({ progress, isAnalyzing }: AnalysisProgressProps) {
+export function AnalysisProgress({ progress, isAnalyzing, onCancel, isCancelling, canCancel }: AnalysisProgressProps) {
   if (!isAnalyzing && !progress) return null
 
   // 根据当前进度更新轨道状态
   if (progress) {
     const p = progress.progress
     // 0-15%: init
-    // 15-45%: tool
-    // 45-78%: llm
-    // 78-90%: consistency
+    // 15-50%: tool
+    // 50-75%: llm
+    // 75-90%: consistency
     // 90-100%: 完成
 
     if (p <= 15) {
@@ -40,21 +43,21 @@ export function AnalysisProgress({ progress, isAnalyzing }: AnalysisProgressProp
       trackStates.tool = { progress: 0, status: '等待中...', currentStep: '' }
       trackStates.llm = { progress: 0, status: '等待中...', currentStep: '' }
       trackStates.consistency = { progress: 0, status: '等待中...', currentStep: '' }
-    } else if (p <= 45) {
+    } else if (p <= 50) {
       trackStates.init = { progress: 100, status: '已完成', currentStep: '' }
-      trackStates.tool = { progress: Math.min(100, ((p - 15) / 30) * 100), status: progress.status, currentStep: progress.currentStep || '' }
+      trackStates.tool = { progress: Math.min(100, ((p - 15) / 35) * 100), status: progress.status, currentStep: progress.currentStep || '' }
       trackStates.llm = { progress: 0, status: '等待中...', currentStep: '' }
       trackStates.consistency = { progress: 0, status: '等待中...', currentStep: '' }
-    } else if (p <= 78) {
+    } else if (p <= 75) {
       trackStates.init = { progress: 100, status: '已完成', currentStep: '' }
       trackStates.tool = { progress: 100, status: '已完成', currentStep: '' }
-      trackStates.llm = { progress: Math.min(100, ((p - 45) / 33) * 100), status: progress.status, currentStep: progress.currentStep || '' }
+      trackStates.llm = { progress: Math.min(100, ((p - 50) / 25) * 100), status: progress.status, currentStep: progress.currentStep || '' }
       trackStates.consistency = { progress: 0, status: '等待中...', currentStep: '' }
     } else if (p <= 90) {
       trackStates.init = { progress: 100, status: '已完成', currentStep: '' }
       trackStates.tool = { progress: 100, status: '已完成', currentStep: '' }
       trackStates.llm = { progress: 100, status: '已完成', currentStep: '' }
-      trackStates.consistency = { progress: Math.min(100, ((p - 78) / 12) * 100), status: progress.status, currentStep: progress.currentStep || '' }
+      trackStates.consistency = { progress: Math.min(100, ((p - 75) / 15) * 100), status: progress.status, currentStep: progress.currentStep || '' }
     } else {
       trackStates.init = { progress: 100, status: '已完成', currentStep: '' }
       trackStates.tool = { progress: 100, status: '已完成', currentStep: '' }
@@ -68,6 +71,9 @@ export function AnalysisProgress({ progress, isAnalyzing }: AnalysisProgressProp
   const elapsedTime = progress?.elapsedTime || 0
   const estimatedTotalTime = elapsedTime > 0 && currentProgress > 0 ? (elapsedTime / currentProgress) * 100 : 0
   const remainingTime = Math.max(0, Math.round(estimatedTotalTime - elapsedTime))
+
+  // 判断是否正在运行LLM轨（可以取消的阶段）
+  const isRunningLLM = currentProgress > 50 && currentProgress < 75
 
   return (
     <Card size="small" style={{ marginBottom: 16, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
@@ -87,6 +93,18 @@ export function AnalysisProgress({ progress, isAnalyzing }: AnalysisProgressProp
             <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
               已耗时 {Math.round(elapsedTime)}s
             </span>
+          )}
+          {canCancel && onCancel && currentProgress < 100 && (
+            <Button
+              size="small"
+              danger
+              icon={<StopOutlined />}
+              onClick={onCancel}
+              loading={isCancelling}
+              disabled={isCancelling}
+            >
+              {isCancelling ? '取消中...' : '取消LLM轨'}
+            </Button>
           )}
           {currentProgress >= 100 ? (
             <Tag color="success" icon={<CheckCircleOutlined />} style={{ fontSize: 11, margin: 0 }}>
@@ -142,6 +160,9 @@ export function AnalysisProgress({ progress, isAnalyzing }: AnalysisProgressProp
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <RobotOutlined style={{ color: '#1890ff', fontSize: 12 }} />
             <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>大模型轨 (千问)</span>
+            {isRunningLLM && (
+              <Tag color="warning" style={{ fontSize: 9, marginLeft: 'auto' }}>可取消</Tag>
+            )}
           </div>
           <Progress
             percent={trackStates.llm.progress}

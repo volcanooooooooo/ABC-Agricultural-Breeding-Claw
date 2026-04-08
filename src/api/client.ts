@@ -181,6 +181,8 @@ export const analysisApi = {
   // 扩展方法 - 双轨分析
   compare: (data: CompareRequest) => api.post<ApiResponse<CompareResponse>>('/analysis/compare', data),
   getResult: (id: string) => api.get<ApiResponse<AnalysisResult>>(`/analysis/results/${id}`),
+  // 取消分析
+  cancel: (jobId: string) => api.post<ApiResponse<{ status: string; message: string }>>(`/analysis/cancel/${jobId}`),
 }
 
 // Dataset types
@@ -210,9 +212,11 @@ export interface GeneInfo {
 
 export interface ToolResult {
   method: string
-  significant_genes: GeneInfo[]
+  significant_genes: GeneInfo[]   // TOP10上调 + TOP10下调（展示用）
+  all_significant_genes?: GeneInfo[]  // 完整列表（可选）
   all_genes: GeneInfo[]
   execution_time: number
+  total_significant?: number       // 完整显著基因总数
 }
 
 export interface LLMResult {
@@ -268,7 +272,7 @@ export interface Feedback {
 
 // Dataset API
 export const datasetApi = {
-  getAll: () => api.get<ApiResponse<Dataset[]>>('/datasets'),
+  getAll: () => api.get<Dataset[]>('/datasets'),
   getById: (id: string) => api.get<ApiResponse<Dataset>>(`/datasets/${id}`),
   upload: (formData: FormData) => api.post<ApiResponse<Dataset>>('/datasets/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-ANALYSIS_RESULTS_DIR = Path("backend/data/analysis_results")
+ANALYSIS_RESULTS_DIR = Path(__file__).parent.parent.parent / "backend" / "data" / "analysis_results"
 
 class AnalysisService:
     """数据分析服务"""
@@ -252,59 +252,64 @@ async def run_tool_analysis(
     pvalue_threshold: float = 0.05,
     log2fc_threshold: float = 1.0
 ) -> ToolResult:
-    """工具轨分析 - 使用 t-test 进行差异检验"""
+    """工具轨分析 - 使用向量化 t-test 进行差异表达分析"""
     import time
     start_time = time.time()
 
-    results = []
+    gene_col = df.columns[0]
+    gene_ids = df[gene_col].astype(str).values
+
+    # 提取对照和处理组数据（向量化）
+    control_data = df[[s for s in control_samples if s in df.columns]].values
+    treatment_data = df[[s for s in treatment_samples if s in df.columns]].values
+
+    # 计算均值和 log2FC（向量化）
+    control_means = np.mean(control_data, axis=1)
+    treatment_means = np.mean(treatment_data, axis=1)
+
+    # 计算 log2FC，避免除零
+    with np.errstate(divide='ignore', invalid='ignore'):
+        log2fc = np.where(
+            (control_means > 0) & (treatment_means > 0),
+            np.log2(treatment_means / control_means),
+            0
+        )
+
+    # 计算 t-test p-value（向量化）
+    t_stats, p_values = stats.ttest_ind(control_data, treatment_data, axis=1)
+
+    # 筛选显著基因
+    significant_mask = (p_values < pvalue_threshold) & (np.abs(log2fc) >= log2fc_threshold)
+
     significant = []
-
-    gene_col = df.columns[0]  # 第一列为基因名
-
-    for _, row in df.iterrows():
-        gene_id = str(row[gene_col])
-
-        control_values = [row[s] for s in control_samples if s in df.columns]
-        treatment_values = [row[s] for s in treatment_samples if s in df.columns]
-
-        if len(control_values) < 2 or len(treatment_values) < 2:
-            continue
-
-        control_mean = np.mean(control_values)
-        treatment_mean = np.mean(treatment_values)
-
-        if control_mean > 0 and treatment_mean > 0:
-            log2fc = np.log2(treatment_mean / control_mean)
-        else:
-            log2fc = 0
-
-        t_stat, pvalue = stats.ttest_ind(control_values, treatment_values)
-
-        if pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold:
-            expression_change = "up" if log2fc > 0 else "down"
-            significant.append(GeneInfo(
-                gene_id=gene_id,
-                expression_change=expression_change,
-                log2fc=float(log2fc),
-                pvalue=float(pvalue)
-            ))
-        else:
-            expression_change = "none"
-
-        results.append(GeneInfo(
-            gene_id=gene_id,
+    for i in np.where(significant_mask)[0]:
+        expression_change = "up" if log2fc[i] > 0 else "down"
+        significant.append(GeneInfo(
+            gene_id=gene_ids[i],
             expression_change=expression_change,
-            log2fc=float(log2fc),
-            pvalue=float(pvalue)
+            log2fc=float(log2fc[i]),
+            pvalue=float(p_values[i])
         ))
+
+    # 分为上调和下调，各取 TOP10
+    upregulated = sorted([g for g in significant if g.expression_change == "up"],
+                         key=lambda x: x.log2fc, reverse=True)
+    downregulated = sorted([g for g in significant if g.expression_change == "down"],
+                           key=lambda x: x.log2fc)
+
+    top10_up = upregulated[:10]
+    top10_down = downregulated[:10]
+    display_genes = top10_up + top10_down
 
     execution_time = time.time() - start_time
 
     return ToolResult(
-        method="ttest_scipy",
-        significant_genes=significant,
-        all_genes=results,
-        execution_time=execution_time
+        method="ttest_scipy_vectorized",
+        significant_genes=display_genes,       # 展示 TOP10+TOP10
+        all_significant_genes=significant,     # 完整列表
+        all_genes=[],
+        execution_time=execution_time,
+        total_significant=len(significant)
     )
 
 
@@ -431,8 +436,10 @@ def calculate_consistency(
     tool_result: ToolResult,
     llm_result: LLMResult
 ) -> ConsistencyInfo:
-    """计算一致性"""
-    tool_genes = {g.gene_id for g in tool_result.significant_genes}
+    """计算一致性（基于完整显著基因列表）"""
+    # 优先使用完整列表，降级到展示列表
+    tool_gene_list = tool_result.all_significant_genes if tool_result.all_significant_genes else tool_result.significant_genes
+    tool_genes = {g.gene_id for g in tool_gene_list}
     llm_genes = {g.gene_id for g in llm_result.significant_genes}
 
     overlap = list(tool_genes & llm_genes)

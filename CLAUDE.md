@@ -36,11 +36,37 @@ breeding-scientist/
 │   ├── app/
 │   │   ├── main.py          # FastAPI 应用入口
 │   │   ├── config.py        # 配置管理
+│   │   ├── database.py      # 数据库连接
 │   │   ├── models/          # Pydantic 模型
+│   │   │   ├── analysis.py
+│   │   │   ├── chat.py
+│   │   │   ├── conversation.py
+│   │   │   ├── dataset.py
+│   │   │   ├── db_models.py
+│   │   │   ├── feedback.py
+│   │   │   ├── message.py
+│   │   │   ├── ontology.py
+│   │   │   └── user.py
 │   │   ├── routers/         # API 路由
+│   │   │   ├── analysis.py
+│   │   │   ├── auth.py
+│   │   │   ├── chat.py
+│   │   │   ├── config.py
+│   │   │   ├── conversations.py
+│   │   │   ├── datasets.py
+│   │   │   ├── feedback.py
+│   │   │   └── ontology.py
 │   │   ├── services/        # 业务逻辑
+│   │   │   ├── analysis_service.py
+│   │   │   ├── dataset_service.py
+│   │   │   ├── feedback_service.py
+│   │   │   ├── llm_service.py
+│   │   │   └── ontology_service.py
 │   │   ├── agent/           # LangChain Agent (分析代理)
+│   │   │   └── analysis_agent.py
 │   │   ├── tools/           # LangChain Tools (分析工具)
+│   │   │   ├── base.py
+│   │   │   └── differential.py
 │   │   └── utils/           # 工具函数
 │   ├── data/
 │   │   ├── datasets/        # 数据集文件
@@ -49,16 +75,45 @@ breeding-scientist/
 │
 ├── src/                     # 前端源码（项目根目录）
 │   ├── api/                # API 客户端
+│   │   ├── auth.ts
+│   │   └── client.ts
 │   ├── components/          # 可复用组件
+│   │   ├── AnalysisProgress.tsx
+│   │   ├── AnalysisResultCard.tsx
+│   │   ├── AuthModal.tsx
+│   │   ├── ComparisonCard.tsx
+│   │   ├── DatasetSelector.tsx
+│   │   ├── DualTrackResultCard.tsx
+│   │   ├── FeedbackHintBanner.tsx
+│   │   ├── FeedbackPanel.tsx
+│   │   ├── FeedbackWidget.tsx
+│   │   ├── FileUploader.tsx
+│   │   ├── GeneDetailModal.tsx
+│   │   ├── GeneInfoPanel.tsx
+│   │   ├── OntologyModal.tsx
+│   │   └── ProgressPanel.tsx
+│   ├── context/             # React Context
+│   │   └── AuthContext.tsx
+│   ├── hooks/              # 自定义 Hooks
+│   │   ├── useFeedbackHints.ts
+│   │   └── useSSE.ts
 │   ├── pages/              # 页面组件
-│   └── App.tsx
+│   │   ├── AnalysisPage.tsx
+│   │   ├── ChatPage.tsx
+│   │   ├── OntologyPage.tsx
+│   │   └── SettingsPage.tsx
+│   ├── App.tsx
+│   └── main.tsx
+│
+├── docs/
+│   ├── code-review/
+│   └── superpowers/
+│       ├── specs/           # 设计文档
+│       └── plans/            # 实现计划
 │
 ├── package.json
 ├── vite.config.ts
-└── docs/
-    └── superpowers/
-        ├── specs/           # 设计文档
-        └── plans/            # 实现计划
+└── index.html
 ```
 
 ### 关键模块

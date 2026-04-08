@@ -38,6 +38,9 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string>('')
   const [input, setInput] = useState('')
+  const [showCmdMenu, setShowCmdMenu] = useState(false)
+  const [cmdIndex, setCmdIndex] = useState(0)
+  const [cmdMenuIndex, setCmdMenuIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -49,6 +52,8 @@ export default function ChatPage() {
   const [geneInfoPanelOpen, setGeneInfoPanelOpen] = useState(false)
   const [ontologyModalOpen, setOntologyModalOpen] = useState(false)
   const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null
@@ -96,7 +101,8 @@ export default function ChatPage() {
   const loadDatasets = async () => {
     try {
       const res = await datasetApi.getAll()
-      const apiDatasets = res?.data?.data || []
+      // API 返回直接数组
+      const apiDatasets = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : [])
 
       // 如果没有数据集，使用模拟数据
       if (apiDatasets.length === 0) {
@@ -196,6 +202,46 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     if (!input.trim() || loading || !currentSessionId) return
+
+    // /tools 命令：展示所有可用工具
+    if (input.trim() === '/tools') {
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: '/tools',
+        timestamp: new Date().toString(),
+      }
+      const toolsMsg: ChatMessage = {
+        id: `${Date.now()}-tools`,
+        role: 'assistant',
+        content: '__tools_list__',
+        timestamp: new Date().toString(),
+        type: 'text',
+      }
+      updateCurrentSession(msgs => [...msgs, userMsg, toolsMsg])
+      setInput('')
+      return
+    }
+
+    // /datasets 命令：展示可用数据集列表
+    if (input.trim() === '/datasets') {
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: '/datasets',
+        timestamp: new Date().toString(),
+      }
+      const datasetsMsg: ChatMessage = {
+        id: `${Date.now()}-datasets`,
+        role: 'assistant',
+        content: '__datasets_list__',
+        timestamp: new Date().toString(),
+        type: 'text',
+      }
+      updateCurrentSession(msgs => [...msgs, userMsg, datasetsMsg])
+      setInput('')
+      return
+    }
 
     // 检查是否是知识本体查询意图
     if (detectOntologyIntent(input)) {
@@ -403,10 +449,15 @@ export default function ChatPage() {
     }])
 
     try {
+      // 从数据集中获取实际的分组名称
+      const groupKeys = Object.keys(dataset.groups || {})
+      const groupControl = groupKeys[0] || 'control'
+      const groupTreatment = groupKeys[1] || 'treatment'
+
       const compareRes = await analysisApi.compare({
         dataset_id: dataset.id,
-        group_control: 'control',
-        group_treatment: 'treatment',
+        group_control: groupControl,
+        group_treatment: groupTreatment,
       })
 
       // 兼容两种响应格式：
@@ -419,8 +470,12 @@ export default function ChatPage() {
         throw new Error('无法获取分析任务ID')
       }
 
+      // 保存 jobId 以支持取消
+      setCurrentJobId(jobId)
+
       const startTime = Date.now()
 
+      // 使用代理，Vite 已配置 ws: true 支持 SSE
       const eventSource = new EventSource(`/api/analysis/stream/${jobId}`)
 
       eventSource.onmessage = (event) => {
@@ -437,9 +492,22 @@ export default function ChatPage() {
             )
           )
           eventSource.close()
+          setCurrentJobId(null)
         } else if (data.status === 'error') {
           message.error(data.message || '分析失败')
           eventSource.close()
+          setCurrentJobId(null)
+        } else if (data.status === 'cancelled') {
+          message.info('分析已取消')
+          updateCurrentSession(msgs =>
+            msgs.map(msg =>
+              msg.id === progressMsgId
+                ? { ...msg, progress: { ...msg.progress!, status: '已取消', progress: data.progress || 50 } }
+                : msg
+            )
+          )
+          eventSource.close()
+          setCurrentJobId(null)
         } else if (data.progress !== undefined) {
           // 更新进度条
           updateCurrentSession(msgs =>
@@ -455,6 +523,7 @@ export default function ChatPage() {
       eventSource.onerror = () => {
         message.error('连接中断')
         eventSource.close()
+        setCurrentJobId(null)
       }
     } catch (error: any) {
       updateCurrentSession(msgs => [...msgs, {
@@ -463,10 +532,56 @@ export default function ChatPage() {
         content: `分析失败: ${error.response?.data?.detail || error.message}`,
         timestamp: new Date().toString(),
       }])
+      setCurrentJobId(null)
     }
   }
 
+  // 取消分析
+  const handleCancelAnalysis = async () => {
+    if (!currentJobId || isCancelling) return
+
+    setIsCancelling(true)
+    try {
+      await analysisApi.cancel(currentJobId)
+      message.info('正在取消分析...')
+    } catch (error: any) {
+      message.error('取消失败: ' + (error.response?.data?.detail || error.message))
+      setIsCancelling(false)
+    }
+  }
+
+  const COMMANDS = [
+    { cmd: '/tools', icon: '🛠️', desc: '显示所有可用分析工具' },
+    { cmd: '/datasets', icon: '📂', desc: '显示可用数据集列表' },
+  ]
+
+  const filteredCmds = COMMANDS.filter(c => c.cmd.startsWith(input.trim()))
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (showCmdMenu && filteredCmds.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCmdIndex(i => (i + 1) % filteredCmds.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCmdIndex(i => (i - 1 + filteredCmds.length) % filteredCmds.length)
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        setInput(filteredCmds[cmdIndex].cmd)
+        setShowCmdMenu(false)
+        setCmdIndex(0)
+        return
+      }
+      if (e.key === 'Escape') {
+        setShowCmdMenu(false)
+        setCmdIndex(0)
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -497,11 +612,160 @@ export default function ChatPage() {
     }
   }
 
+  // 可用工具定义（与后端 TOOL_REGISTRY 保持同步）
+  const TOOL_LIST = [
+    {
+      name: 'differential_expression_analysis',
+      label: '差异表达分析',
+      icon: '🧬',
+      description: '对基因表达数据进行差异表达分析，使用 t-test 统计方法识别显著差异基因，支持 log2FC 和 p-value 阈值筛选。',
+      usage: '/analyze --control WT --treatment osbzip23',
+      params: [
+        { name: 'control_group', desc: '对照组名称（如 "WT"）' },
+        { name: 'treatment_group', desc: '处理组名称（如 "osbzip23"）' },
+        { name: 'pvalue_threshold', desc: 'P 值阈值，默认 0.05' },
+        { name: 'log2fc_threshold', desc: 'log2FC 阈值，默认 1.0' },
+      ],
+      output: '返回上调/下调 TOP10 基因表格、火山图数据及完整 CSV 下载',
+    },
+  ]
+
   // 渲染消息内容
   const renderMessageContent = (msg: ChatMessage) => {
     // 加载状态
     if (msg.isLoading) {
       return <Spin />
+    }
+
+    // /tools 工具列表
+    if (msg.content === '__tools_list__') {
+      return (
+        <div style={{ minWidth: 480, maxWidth: 600 }}>
+          <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            🛠️ 当前可用工具（共 {TOOL_LIST.length} 个）
+          </div>
+          {TOOL_LIST.map((tool, idx) => (
+            <div key={tool.name} style={{
+              background: 'var(--color-bg-input)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: idx < TOOL_LIST.length - 1 ? 10 : 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>{tool.icon}</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-accent)' }}>{tool.label}</span>
+                <Tag style={{ marginLeft: 4, fontSize: 11, fontFamily: 'monospace' }}>{tool.name}</Tag>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 10, lineHeight: 1.6 }}>
+                {tool.description}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>参数：</span>
+                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {tool.params.map(p => (
+                    <div key={p.name} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                      <code style={{ background: 'rgba(0,212,255,0.1)', padding: '1px 6px', borderRadius: 4, marginRight: 6, fontSize: 11 }}>{p.name}</code>
+                      {p.desc}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                <span style={{ fontWeight: 600 }}>输出：</span>{tool.output}
+              </div>
+              <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(0,212,255,0.08)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, color: 'var(--color-accent)' }}>
+                示例：{tool.usage}
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+            💡 输入 <code style={{ background: 'rgba(0,212,255,0.1)', padding: '1px 6px', borderRadius: 4 }}>/analyze</code> 或直接用自然语言描述分析需求即可调用工具
+          </div>
+        </div>
+      )
+    }
+
+    // /datasets 数据集列表
+    if (msg.content === '__datasets_list__') {
+      return (
+        <div style={{ minWidth: 480, maxWidth: 620 }}>
+          <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            📂 可用数据集（共 {datasets.length} 个）
+          </div>
+          {datasets.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>暂无数据集，请先上传数据集。</div>
+          ) : datasets.map((ds, idx) => (
+            <div key={ds.id} style={{
+              background: 'var(--color-bg-input)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '12px 16px',
+              marginBottom: idx < datasets.length - 1 ? 8 : 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-text-primary)' }}>{ds.name}</span>
+                <Tag style={{ fontSize: 11, fontFamily: 'monospace' }}>{ds.id}</Tag>
+              </div>
+              {ds.description && (
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{ds.description}</div>
+              )}
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {ds.gene_count != null && <span>🧬 {ds.gene_count} 基因</span>}
+                {ds.sample_count != null && <span>🧪 {ds.sample_count} 样本</span>}
+                {ds.groups && (
+                  <span>分组：{Object.keys(ds.groups).join(' / ')}</span>
+                )}
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+            💡 直接描述分析需求，系统会自动匹配合适的数据集
+          </div>
+        </div>
+      )
+    }
+
+    // /datasets 数据集列表
+    if (msg.content === '__datasets_list__') {
+      return (
+        <div style={{ minWidth: 480, maxWidth: 620 }}>
+          <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            📂 可用数据集（共 {datasets.length} 个）
+          </div>
+          {datasets.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>暂无数据集，请先上传数据集。</div>
+          ) : (
+            datasets.map((ds, idx) => (
+              <div key={ds.id} style={{
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: idx < datasets.length - 1 ? 8 : 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-text-primary)' }}>{ds.name}</span>
+                  <Tag style={{ fontSize: 11, fontFamily: 'monospace' }}>{ds.id}</Tag>
+                </div>
+                {ds.description && (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{ds.description}</div>
+                )}
+                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  {ds.gene_count != null && <span>基因数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.gene_count.toLocaleString()}</b></span>}
+                  {ds.sample_count != null && <span>样本数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.sample_count}</b></span>}
+                  {ds.groups && (
+                    <span>分组：<b style={{ color: 'var(--color-text-secondary)' }}>{Object.keys(ds.groups).join(' / ')}</b></span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+            💡 直接描述分析需求，系统会自动匹配相关数据集
+          </div>
+        </div>
+      )
     }
 
     // 数据集选择卡片
@@ -608,7 +872,13 @@ export default function ChatPage() {
     if (msg.type === 'progress' && msg.progress) {
       return (
         <>
-          <AnalysisProgress progress={msg.progress} isAnalyzing={!msg.analysisResult} />
+          <AnalysisProgress
+            progress={msg.progress}
+            isAnalyzing={!msg.analysisResult}
+            onCancel={handleCancelAnalysis}
+            isCancelling={isCancelling}
+            canCancel={currentJobId !== null && msg.progress.progress > 50 && msg.progress.progress < 75}
+          />
           {msg.analysisResult && (
             <div style={{ marginTop: 16 }}>
               <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
@@ -895,6 +1165,40 @@ export default function ChatPage() {
 
         {/* 输入区域 */}
         <div style={{ padding: '0 24px 24px', background: 'var(--color-bg-dark)' }}>
+          {/* 命令提示面板 */}
+          {showCmdMenu && filteredCmds.length > 0 && (
+            <div style={{
+              maxWidth: 1050,
+              margin: '0 auto 8px',
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-card)',
+            }}>
+              {filteredCmds.map((c, idx) => (
+                <div
+                  key={c.cmd}
+                  onClick={() => { setInput(c.cmd); setShowCmdMenu(false); setCmdIndex(0) }}
+                  onMouseEnter={() => setCmdIndex(idx)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 16px',
+                    cursor: 'pointer',
+                    borderBottom: idx < filteredCmds.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    background: idx === cmdIndex ? 'rgba(0,212,255,0.12)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{c.icon}</span>
+                  <code style={{ fontSize: 13, color: 'var(--color-accent)', minWidth: 100 }}>{c.cmd}</code>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{c.desc}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{
             background: 'var(--color-bg-card)',
             borderRadius: 24,
@@ -909,7 +1213,11 @@ export default function ChatPage() {
           }}>
             <TextArea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                setInput(val)
+                setShowCmdMenu(val.startsWith('/') && val.length >= 1)
+              }}
               onKeyDown={handleKeyPress}
               placeholder={hasMessages ? "输入消息..." : "请描述您的问题或分析需求..."}
               autoSize={{ minRows: 1, maxRows: 6 }}

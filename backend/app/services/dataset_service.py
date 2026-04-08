@@ -9,7 +9,11 @@ import pandas as pd
 
 from app.models.dataset import Dataset, DatasetUploadRequest, MAX_FILE_SIZE
 
-DATA_DIR = Path("backend/data")
+# 使用相对于项目根目录的路径
+# 确保无论从哪个目录启动后端，路径都正确
+import app
+APP_DIR = Path(app.__file__).parent.parent  # backend/app/ -> backend/
+DATA_DIR = APP_DIR / "data"
 DATASETS_DIR = DATA_DIR / "datasets"
 DATASETS_FILE = DATA_DIR / "datasets.json"
 
@@ -47,6 +51,11 @@ class DatasetService:
         datasets = self._load_datasets()
         for d in datasets:
             if d["id"] == dataset_id:
+                # 解析文件路径：如果不是绝对路径，则相对于 APP_DIR
+                file_path = Path(d["file_path"])
+                if not file_path.is_absolute():
+                    file_path = APP_DIR / file_path
+                d["file_path"] = str(file_path)
                 return Dataset(**d)
         return None
 

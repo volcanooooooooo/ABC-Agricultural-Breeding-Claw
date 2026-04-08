@@ -1,3 +1,11 @@
+import sys
+import io
+
+# 修复 Windows 命令行中文乱码
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -24,7 +32,7 @@ def startup():
     init_db()
 
 
-from app.routers import chat, ontology, analysis, config, datasets, feedback, conversations
+from app.routers import chat, ontology, analysis, config, datasets, feedback, conversations, download
 
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 app.include_router(chat.router, prefix="/api/chat", tags=["聊天"])
@@ -34,6 +42,7 @@ app.include_router(analysis.router, prefix="/api/analysis", tags=["分析"])
 app.include_router(config.router, prefix="/api/config", tags=["配置"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["数据集"])
 app.include_router(feedback.router, prefix="/api/feedbacks", tags=["反馈"])
+app.include_router(download.router, prefix="/api/download", tags=["下载"])
 
 @app.get("/")
 async def root():

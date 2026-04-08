@@ -14,9 +14,11 @@ class GeneInfo(BaseModel):
 
 class ToolResult(BaseModel):
     method: str = "ttest_scipy"
-    significant_genes: List[GeneInfo]
+    significant_genes: List[GeneInfo]   # TOP10上调 + TOP10下调（用于展示）
+    all_significant_genes: List[GeneInfo] = []  # 完整显著基因列表（用于下载）
     all_genes: List[GeneInfo]
     execution_time: float
+    total_significant: int = 0          # 完整显著基因总数
 
 
 class LLMResult(BaseModel):
