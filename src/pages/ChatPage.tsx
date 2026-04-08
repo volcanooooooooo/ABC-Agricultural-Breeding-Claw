@@ -570,6 +570,33 @@ export default function ChatPage() {
     }
   }
 
+  // 从差异分析结果触发富集分析
+  const handleEnrichmentFromResult = async (analysisResult: AnalysisResult) => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
+
+    const geneIds = analysisResult.tool_result.significant_genes
+      .map(g => g.gene_id)
+      .join(',')
+
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'user',
+      content: `对以下基因做富集分析：${geneIds}`,
+      timestamp: new Date().toString(),
+    }
+
+    updateCurrentSession(msgs => [...msgs, userMessage])
+    setLoading(true)
+    setIsAtBottom(true)
+    await handleNormalChat(userMessage)
+    setLoading(false)
+  }
+
+  // 跳过富集分析提示
+  const handleSkipEnrichment = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
+  }
+
   const COMMANDS = [
     { cmd: '/tools', icon: '🛠️', desc: '显示所有可用分析工具' },
     { cmd: '/datasets', icon: '📂', desc: '显示可用数据集列表' },
@@ -907,6 +934,94 @@ export default function ChatPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )
+    }
+
+    // 富集分析提示卡片
+    if (msg.type === 'enrichment-prompt' && msg.analysisResult) {
+      const totalSig = msg.analysisResult.tool_result.total_significant
+        ?? msg.analysisResult.tool_result.significant_genes.length
+      return (
+        <div style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          minWidth: 360,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 18 }}>🔬</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
+              差异分析完成
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            共发现 <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{totalSig}</span> 个显著差异基因。
+            <br />是否对全部基因进行 KEGG/GO 富集分析？
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              size="small"
+              style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
+              onClick={() => handleEnrichmentFromResult(msg.analysisResult!)}
+            >
+              立即富集
+            </Button>
+            <Button
+              type="text"
+              size="small"
+              style={{ color: 'var(--color-text-muted)' }}
+              onClick={handleSkipEnrichment}
+            >
+              跳过
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    // 富集分析提示卡片
+    if (msg.type === 'enrichment-prompt' && msg.analysisResult) {
+      const totalSig = msg.analysisResult.tool_result.total_significant
+        ?? msg.analysisResult.tool_result.significant_genes.length
+      return (
+        <div style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          minWidth: 360,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 18 }}>🔬</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
+              差异分析完成
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            共发现 <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{totalSig}</span> 个显著差异基因。
+            <br />是否对全部基因进行 KEGG/GO 富集分析？
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              size="small"
+              style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
+              onClick={() => handleEnrichmentFromResult(msg.analysisResult!)}
+            >
+              立即富集
+            </Button>
+            <Button
+              type="text"
+              size="small"
+              style={{ color: 'var(--color-text-muted)' }}
+              onClick={handleSkipEnrichment}
+            >
+              跳过
+            </Button>
           </div>
         </div>
       )
