@@ -12,6 +12,7 @@ import { GeneDetailModal } from '../components/GeneDetailModal'
 import { GeneInfoPanel } from '../components/GeneInfoPanel'
 import { OntologyModal } from '../components/OntologyModal'
 import { useSSE } from '../hooks/useSSE'
+import { EnrichmentResultCard, EnrichmentResult } from '../components/EnrichmentResultCard'
 
 const { TextArea } = Input
 const { Sider, Content } = Layout
@@ -612,6 +613,16 @@ export default function ChatPage() {
     }
   }
 
+  const tryParseEnrichmentResult = (content: string): EnrichmentResult | null => {
+    const match = content.match(/<!-- ENRICHMENT_DATA: (.+?) -->/)
+    if (!match) return null
+    try {
+      return JSON.parse(match[1]) as EnrichmentResult
+    } catch {
+      return null
+    }
+  }
+
   // 可用工具定义（与后端 TOOL_REGISTRY 保持同步）
   const TOOL_LIST = [
     {
@@ -891,6 +902,30 @@ export default function ChatPage() {
     // 分析结果卡片
     if ((msg.type === 'result' || msg.type === 'analysis') && msg.analysisResult) {
       return <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
+    }
+
+    // 检测消息内容是否包含富集分析数据
+    const enrichmentResult = tryParseEnrichmentResult(msg.content)
+    if (enrichmentResult) {
+      const cleanContent = msg.content.replace(/<!-- ENRICHMENT_DATA: .+? -->/, '').trim()
+      return (
+        <div>
+          {cleanContent && (
+            <div style={{
+              background: 'var(--color-bg-card)',
+              color: 'var(--color-text-primary)',
+              padding: '12px 16px',
+              borderRadius: 16,
+              lineHeight: 1.6,
+              marginBottom: 8,
+              whiteSpace: 'pre-wrap',
+            }}>
+              {cleanContent}
+            </div>
+          )}
+          <EnrichmentResultCard result={enrichmentResult} />
+        </div>
+      )
     }
 
     // 检测消息内容是否为 JSON 格式的分析结果
