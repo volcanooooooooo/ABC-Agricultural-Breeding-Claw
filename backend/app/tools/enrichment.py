@@ -118,7 +118,7 @@ def _run_go_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[str,
 
     filtered = [
         r for r in results
-        if r.enrichment == "e" and r.p_fdr_bh <= pvalue_cutoff
+        if r.enrichment in ("e", "p") and r.p_fdr_bh <= pvalue_cutoff
     ]
     filtered.sort(key=lambda r: r.p_uncorrected)
     filtered = filtered[:20]
@@ -136,6 +136,7 @@ def _run_go_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[str,
             "pvalue": rec.p_uncorrected,
             "adjusted_pvalue": rec.p_fdr_bh,
             "enrichment_score": score,
+            "enrichment_type": "enriched" if rec.enrichment == "e" else "purified",
             "genes": list(rec.study_items)[:50],
         })
     return out
