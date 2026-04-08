@@ -19,12 +19,13 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
   selectedDataset?: Dataset
-  geneId?: string  // 新增：查询的基因ID
+  geneId?: string
+  enrichmentResult?: EnrichmentResult
 }
 
 interface ChatSession {
@@ -572,24 +573,49 @@ export default function ChatPage() {
 
   // 从差异分析结果触发富集分析
   const handleEnrichmentFromResult = async (analysisResult: AnalysisResult) => {
+    // 移除富集提示卡片
     updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
 
-    const geneIds = analysisResult.tool_result.significant_genes
-      .map(g => g.gene_id)
-      .join(',')
+    // 使用全部显著基因，兼容旧数据回退到 significant_genes
+    const allGenes = analysisResult.tool_result.all_significant_genes
+      ?? analysisResult.tool_result.significant_genes
+    const geneIds = allGenes.map(g => g.gene_id)
 
-    const userMessage: ChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      role: 'user',
-      content: `对以下基因做富集分析：${geneIds}`,
+    const loadingId = `enrichment-loading-${Date.now()}`
+
+    // 插入加载消息
+    const loadingMsg: ChatMessage = {
+      id: loadingId,
+      role: 'assistant',
+      content: `正在对 ${geneIds.length} 个显著基因进行 KEGG/GO 富集分析...`,
       timestamp: new Date().toString(),
+      type: 'enrichment-loading',
     }
-
-    updateCurrentSession(msgs => [...msgs, userMessage])
-    setLoading(true)
+    updateCurrentSession(msgs => [...msgs, loadingMsg])
     setIsAtBottom(true)
-    await handleNormalChat(userMessage)
-    setLoading(false)
+
+    try {
+      const res = await analysisApi.runEnrichment(geneIds)
+      const enrichmentData: EnrichmentResult = res.data.data
+
+      // 替换 loading 为结果
+      updateCurrentSession(msgs =>
+        msgs.map(msg =>
+          msg.id === loadingId
+            ? { ...msg, type: 'enrichment-result' as const, content: '', enrichmentResult: enrichmentData }
+            : msg
+        )
+      )
+    } catch (err: any) {
+      // 替换 loading 为错误提示
+      updateCurrentSession(msgs =>
+        msgs.map(msg =>
+          msg.id === loadingId
+            ? { ...msg, type: 'text' as const, content: `富集分析失败: ${err?.response?.data?.detail || err.message || '未知错误'}` }
+            : msg
+        )
+      )
+    }
   }
 
   // 跳过富集分析提示
@@ -937,6 +963,30 @@ export default function ChatPage() {
           </div>
         </div>
       )
+    }
+
+    // 富集分析加载中
+    if (msg.type === 'enrichment-loading') {
+      return (
+        <div style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 16,
+          padding: '24px 32px',
+          textAlign: 'center',
+          minWidth: 300,
+        }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            {msg.content}
+          </div>
+        </div>
+      )
+    }
+
+    // 富集分析结果
+    if (msg.type === 'enrichment-result' && msg.enrichmentResult) {
+      return <EnrichmentResultCard result={msg.enrichmentResult} />
     }
 
     // 富集分析提示卡片
