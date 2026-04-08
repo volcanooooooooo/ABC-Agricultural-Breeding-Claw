@@ -4,6 +4,20 @@ import json
 from typing import Any, Dict, List
 
 
+# Enrichr 支持的物种名映射（gseapy organism 参数）
+# 水稻等非模式生物统一用 "human" 库（Enrichr 做基因 ID 匹配，物种无关）
+_ORGANISM_MAP = {
+    "oryza sativa": "human",
+    "rice": "human",
+    "arabidopsis": "human",
+    "arabidopsis thaliana": "human",
+    "human": "human",
+    "mouse": "mouse",
+    "homo sapiens": "human",
+    "mus musculus": "mouse",
+}
+
+
 def enrichment_analysis(
     gene_list: str,
     analysis_type: str = "both",
@@ -16,7 +30,7 @@ def enrichment_analysis(
     Args:
         gene_list: 逗号分隔的基因 ID，如 "OsMH_01G0000400,OsMH_02G0001200"
         analysis_type: "GO" | "KEGG" | "both"，默认 "both"
-        organism: 物种名称，默认 "oryza sativa"（水稻）
+        organism: 物种名称，默认 "oryza sativa"（水稻，使用 human 基因库）
         pvalue_cutoff: p 值阈值，默认 0.05
         gene_sets: GO 数据库类型，默认 "GO_Biological_Process_2023"
 
@@ -35,6 +49,9 @@ def enrichment_analysis(
     genes: List[str] = [g.strip() for g in gene_list.split(",") if g.strip()]
     if not genes:
         return json.dumps({"error": "gene_list is empty"})
+
+    # 将物种名映射到 Enrichr 支持的格式
+    enrichr_organism = _ORGANISM_MAP.get(organism.lower(), "human")
 
     try:
         import gseapy as gp
@@ -66,11 +83,11 @@ def enrichment_analysis(
                 enr = gp.enrichr(
                     gene_list=genes,
                     gene_sets="KEGG_2021_Human",
-                    organism=organism,
+                    organism=enrichr_organism,
                     cutoff=pvalue_cutoff,
                 )
                 kegg_results = _parse_enr(enr.results)
-            except Exception:
+            except Exception as e:
                 kegg_results = []
 
         if analysis_type in ("GO", "both"):
@@ -78,11 +95,11 @@ def enrichment_analysis(
                 enr = gp.enrichr(
                     gene_list=genes,
                     gene_sets=gene_sets,
-                    organism=organism,
+                    organism=enrichr_organism,
                     cutoff=pvalue_cutoff,
                 )
                 go_results = _parse_enr(enr.results)
-            except Exception:
+            except Exception as e:
                 go_results = []
 
         result["kegg_results"] = kegg_results
