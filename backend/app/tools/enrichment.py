@@ -80,6 +80,14 @@ def _load_annotations() -> None:
             pass
 
 
+def _normalize_gene_id(gene_id: str) -> str:
+    """将 OsMH_ 格式转换为 OsMH63_ 格式（去掉末尾一位数字）。"""
+    if gene_id.startswith("OsMH_") and not gene_id.startswith("OsMH63_"):
+        suffix = gene_id[5:]  # e.g. "01G0000100"
+        return "OsMH63_" + suffix[:-1]  # e.g. "OsMH63_01G000010"
+    return gene_id
+
+
 # ---------------------------------------------------------------------------
 # GO enrichment
 # ---------------------------------------------------------------------------
@@ -235,6 +243,14 @@ def enrichment_analysis(
     if not genes:
         return json.dumps({"error": "gene_list is empty"})
 
+    # ID 转换: OsMH_ → OsMH63_ (保留原始 ID 映射用于结果回显)
+    converted_to_original: Dict[str, str] = {}
+    converted_genes: List[str] = []
+    for g in genes:
+        c = _normalize_gene_id(g)
+        converted_to_original[c] = g
+        converted_genes.append(c)
+
     _load_annotations()
 
     kegg_results: List[Dict[str, Any]] = []
@@ -242,12 +258,16 @@ def enrichment_analysis(
 
     try:
         if analysis_type in ("KEGG", "both"):
-            kegg_results = _run_kegg_enrichment(genes, pvalue_cutoff)
+            kegg_results = _run_kegg_enrichment(converted_genes, pvalue_cutoff)
 
         if analysis_type in ("GO", "both"):
-            go_results = _run_go_enrichment(genes, pvalue_cutoff)
+            go_results = _run_go_enrichment(converted_genes, pvalue_cutoff)
     except Exception as e:
         return json.dumps({"error": f"Enrichment analysis error: {str(e)}"})
+
+    # 将结果中的基因 ID 转回原始格式
+    for item in kegg_results + go_results:
+        item["genes"] = [converted_to_original.get(g, g) for g in item["genes"]]
 
     result: Dict[str, Any] = {
         "kegg_results": kegg_results,
