@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import asyncio
 import json
+import re
 import uuid
+import httpx
 import pandas as pd
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -19,6 +21,8 @@ from app.models.analysis import (
     CompareRequest, CompareResponse, AnalysisResult, LLMResult
 )
 from app.tools.enrichment import enrichment_analysis
+
+from pathlib import Path
 
 router = APIRouter()
 
@@ -237,6 +241,50 @@ async def run_enrichment(request: EnrichmentRequest):
         raise HTTPException(status_code=400, detail=result["error"])
 
     return {"status": "success", "data": result}
+
+
+@router.get("/kegg-image/{pathway_id}")
+async def get_kegg_pathway_image(pathway_id: str):
+    """代理 KEGG 通路图 PNG 图片"""
+    if not re.match(r'^osa\d{5}$', pathway_id):
+        raise HTTPException(status_code=400, detail="Invalid pathway ID format")
+
+    url = f"https://rest.kegg.jp/get/{pathway_id}/image"
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="KEGG API returned non-200")
+            return StreamingResponse(
+                iter([resp.content]),
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="KEGG API timeout")
+
+
+@router.post("/upload-fasta")
+async def upload_fasta(file: UploadFile = File(...)):
+    """上传 FASTA 文件，用于 BLAST 查询或建库"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    allowed_exts = {".fa", ".fasta", ".fna", ".faa", ".fas", ".txt"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'. Allowed: {allowed_exts}")
+
+    uploads_dir = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    dest = uploads_dir / safe_name
+
+    content = await file.read()
+    dest.write_bytes(content)
+
+    return {"status": "success", "file_path": str(dest), "filename": file.filename}
 
 
 # ============ 双轨分析 API 和 SSE ============
