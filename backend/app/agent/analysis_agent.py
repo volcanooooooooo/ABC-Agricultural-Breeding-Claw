@@ -17,15 +17,20 @@ from app.tools.enrichment import (
     ENRICHMENT_ANALYSIS_SCHEMA,
     enrichment_analysis,
 )
+from app.tools.blast import (
+    BLAST_SEARCH_SCHEMA,
+    blast_search,
+)
 
 # ── 工具注册表：名称 → 可调用函数 ──────────────────────────────────────────
 TOOL_HANDLERS = {
     "differential_expression_analysis": differential_expression_analysis,
     "enrichment_analysis": enrichment_analysis,
+    "blast_search": blast_search,
 }
 
 # ── LLM function calling 工具描述列表 ─────────────────────────────────────
-TOOLS = [DIFFERENTIAL_ANALYSIS_SCHEMA, ENRICHMENT_ANALYSIS_SCHEMA]
+TOOLS = [DIFFERENTIAL_ANALYSIS_SCHEMA, ENRICHMENT_ANALYSIS_SCHEMA, BLAST_SEARCH_SCHEMA]
 
 
 def _dispatch_tool(name: str, arguments: Dict[str, Any]) -> str:
@@ -45,6 +50,9 @@ def _dispatch_tool(name: str, arguments: Dict[str, Any]) -> str:
                 if "volcano_data" in data and len(data["volcano_data"]) > 100:
                     data["volcano_data"] = data["volcano_data"][:100]
                     data["volcano_data_truncated"] = True
+                if "hits" in data and len(data["hits"]) > 30:
+                    data["hits"] = data["hits"][:30]
+                    data["hits_truncated"] = True
                 result = json.dumps(data, ensure_ascii=False)
             except Exception:
                 pass
