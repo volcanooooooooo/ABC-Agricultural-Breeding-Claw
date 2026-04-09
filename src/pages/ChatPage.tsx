@@ -13,19 +13,21 @@ import { GeneInfoPanel } from '../components/GeneInfoPanel'
 import { OntologyModal } from '../components/OntologyModal'
 import { useSSE } from '../hooks/useSSE'
 import { EnrichmentResultCard, EnrichmentResult } from '../components/EnrichmentResultCard'
+import { BlastResultCard, BlastResult } from '../components/BlastResultCard'
 
 const { TextArea } = Input
 const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
   selectedDataset?: Dataset
   geneId?: string
   enrichmentResult?: EnrichmentResult
+  blastResult?: BlastResult
 }
 
 interface ChatSession {
@@ -56,6 +58,7 @@ export default function ChatPage() {
   const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null
@@ -335,15 +338,21 @@ export default function ChatPage() {
       return
     }
 
+    let finalContent = input.trim()
+    if (uploadedFile) {
+      finalContent += `\n[上传文件: ${uploadedFile.name}, 路径: ${uploadedFile.path}]`
+    }
+
     const userMessage: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'user',
-      content: input.trim(),
+      content: finalContent,
       timestamp: new Date().toString(),
     }
 
     updateCurrentSession(msgs => [...msgs, userMessage])
     setInput('')
+    setUploadedFile(null)
     setLoading(true)
     setIsAtBottom(true)
     await handleNormalChat(userMessage)
@@ -389,7 +398,7 @@ export default function ChatPage() {
 
     try {
       const response = await chatApi.sendMessage({ message: userMessage.content })
-      const assistantContent = (response.data as any).content || (response.data as any).response
+      const assistantContent = (response.data as any).content ?? (response.data as any).response ?? ''
       updateCurrentSession(msgs =>
         msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: assistantContent, isLoading: false } : msg)
       )
@@ -630,6 +639,32 @@ export default function ChatPage() {
 
   const filteredCmds = COMMANDS.filter(c => c.cmd.startsWith(input.trim()))
 
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    const exts = ['.fa', '.fasta', '.fna', '.faa', '.fas', '.txt']
+    const ext = '.' + (file.name.split('.').pop()?.toLowerCase() ?? '')
+    if (!exts.includes(ext)) {
+      message.error('请上传 FASTA 格式文件（.fa, .fasta, .fna, .faa）')
+      return
+    }
+    try {
+      const res = await analysisApi.uploadFasta(file)
+      const data = (res.data as any).data ?? res.data
+      setUploadedFile({ path: data.file_path, name: data.filename ?? file.name })
+      message.success(`文件 ${file.name} 上传成功`)
+    } catch (err: any) {
+      message.error('文件上传失败: ' + (err.message || '未知错误'))
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (showCmdMenu && filteredCmds.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -663,6 +698,7 @@ export default function ChatPage() {
 
   // 检测消息内容是否为 JSON 格式的分析结果
   const tryParseAnalysisResult = (content: string): SimpleAnalysisResult | null => {
+    if (!content) return null
     try {
       const parsed = JSON.parse(content)
       // 检查是否符合 SimpleAnalysisResult 格式
@@ -686,10 +722,22 @@ export default function ChatPage() {
   }
 
   const tryParseEnrichmentResult = (content: string): EnrichmentResult | null => {
+    if (!content) return null
     const match = content.match(/<!-- ENRICHMENT_DATA: (.+?) -->/)
     if (!match) return null
     try {
       return JSON.parse(match[1]) as EnrichmentResult
+    } catch {
+      return null
+    }
+  }
+
+  const tryParseBlastResult = (content: string): BlastResult | null => {
+    if (!content) return null
+    const match = content.match(/<!-- BLAST_DATA: (.+?) -->/)
+    if (!match) return null
+    try {
+      return JSON.parse(match[1]) as BlastResult
     } catch {
       return null
     }
@@ -724,6 +772,21 @@ export default function ChatPage() {
         { name: 'organism', desc: '物种名称，默认 oryza sativa（水稻）' },
       ],
       output: '返回 KEGG/GO 富集通路气泡图和可排序结果表格',
+    },
+    {
+      name: 'blast_search',
+      label: 'BLAST 序列比对',
+      icon: '🧬',
+      description: '使用本地 BLAST+ 进行序列比对分析。支持 blastn（核酸比核酸）、blastp（蛋白比蛋白）、blastx（核酸翻译比蛋白）、tblastn（蛋白比核酸翻译）。',
+      usage: '帮我比对这条序列：ATGCGATCGATCG... 或拖拽 FASTA 文件到对话框',
+      params: [
+        { name: 'query', desc: 'FASTA 序列、基因 ID 或上传文件路径' },
+        { name: 'program', desc: '"blastn" | "blastp" | "blastx" | "tblastn"，默认 blastn' },
+        { name: 'database', desc: '目标数据库名称，默认 MH63' },
+        { name: 'evalue', desc: 'E-value 阈值，默认 1e-5' },
+        { name: 'max_hits', desc: '最大返回比对数，默认 50' },
+      ],
+      output: '返回 BLAST 比对命中表格，包含相似度、E-value、覆盖度等',
     },
   ]
 
@@ -1102,6 +1165,30 @@ export default function ChatPage() {
       return <DualTrackResultCard result={msg.analysisResult} onFollowUp={handleFollowUp} onGeneClick={handleGeneClick} />
     }
 
+    // 检测消息内容是否包含 BLAST 比对数据
+    const blastResult = tryParseBlastResult(msg.content)
+    if (blastResult) {
+      const cleanContent = msg.content.replace(/<!-- BLAST_DATA: .+? -->/, '').trim()
+      return (
+        <div>
+          {cleanContent && (
+            <div style={{
+              background: 'var(--color-bg-card)',
+              color: 'var(--color-text-primary)',
+              padding: '12px 16px',
+              borderRadius: 16,
+              lineHeight: 1.6,
+              marginBottom: 8,
+              whiteSpace: 'pre-wrap',
+            }}>
+              {cleanContent}
+            </div>
+          )}
+          <BlastResultCard result={blastResult} />
+        </div>
+      )
+    }
+
     // 检测消息内容是否包含富集分析数据
     const enrichmentResult = tryParseEnrichmentResult(msg.content)
     if (enrichmentResult) {
@@ -1397,7 +1484,7 @@ export default function ChatPage() {
         </div>
 
         {/* 输入区域 */}
-        <div style={{ padding: '0 24px 24px', background: 'var(--color-bg-dark)' }}>
+        <div style={{ padding: '0 24px 24px', background: 'var(--color-bg-dark)' }} onDrop={handleDrop} onDragOver={handleDragOver}>
           {/* 命令提示面板 */}
           {showCmdMenu && filteredCmds.length > 0 && (
             <div style={{
@@ -1444,6 +1531,16 @@ export default function ChatPage() {
             margin: '0 auto',
             boxShadow: 'var(--shadow-card)',
           }}>
+            {uploadedFile && (
+              <Tag
+                closable
+                onClose={() => setUploadedFile(null)}
+                style={{ marginRight: 8 }}
+                color="cyan"
+              >
+                {uploadedFile.name}
+              </Tag>
+            )}
             <TextArea
               value={input}
               onChange={(e) => {

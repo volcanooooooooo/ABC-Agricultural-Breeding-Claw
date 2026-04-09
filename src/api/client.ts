@@ -190,6 +190,14 @@ export const analysisApi = {
       analysis_type: analysisType ?? 'both',
       pvalue_cutoff: pvalueCutoff ?? 0.05,
     }),
+  // FASTA 文件上传（用于 BLAST）
+  uploadFasta: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<ApiResponse<{ file_path: string; filename: string }>>('/analysis/upload-fasta', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 // Dataset types
