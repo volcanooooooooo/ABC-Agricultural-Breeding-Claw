@@ -30,3 +30,8 @@ worktrees/
 # Environment
 .env
 .env.local
+
+# Local backend runtime data
+backend/backend/
+backend/data/*.db
+backend/data/breeding.db

@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
+import { KeggPathwayModal } from './KeggPathwayModal'
 
 const { Text } = Typography
 
@@ -81,6 +82,7 @@ export const EnrichmentResultCard = ({ result }: EnrichmentResultCardProps) => {
   const [dbType, setDbType] = useState<'KEGG' | 'GO'>('KEGG')
   const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart')
   const [searchText, setSearchText] = useState('')
+  const [selectedPathway, setSelectedPathway] = useState<PathwayResult | null>(null)
 
   const data = dbType === 'KEGG' ? result.kegg_results : result.go_results
   const top15 = data.slice(0, 15)
@@ -90,7 +92,7 @@ export const EnrichmentResultCard = ({ result }: EnrichmentResultCardProps) => {
     d.pathway.toLowerCase().includes(searchText.toLowerCase())
   )
 
-  const columns = [
+  const baseColumns = [
     {
       title: '通路/Term',
       dataIndex: 'pathway',
@@ -130,6 +132,17 @@ export const EnrichmentResultCard = ({ result }: EnrichmentResultCardProps) => {
       render: (v: number) => v.toExponential(2),
     },
   ]
+
+  const actionColumn = {
+    title: '操作',
+    key: 'action',
+    width: 80,
+    render: (_: any, record: PathwayResult) => (
+      <a onClick={() => setSelectedPathway(record)} style={{ fontSize: 13 }}>通路图</a>
+    ),
+  }
+
+  const tableColumns = dbType === 'KEGG' ? [...baseColumns, actionColumn] : baseColumns
 
   const expandedRowRender = (record: PathwayResult) => (
     <div style={{ padding: '4px 0' }}>
@@ -207,7 +220,7 @@ export const EnrichmentResultCard = ({ result }: EnrichmentResultCardProps) => {
           />
           <Table
             dataSource={filtered}
-            columns={columns}
+            columns={tableColumns}
             rowKey="pathway_id"
             size="small"
             expandable={{ expandedRowRender }}
@@ -216,6 +229,14 @@ export const EnrichmentResultCard = ({ result }: EnrichmentResultCardProps) => {
           />
         </>
       )}
+
+      <KeggPathwayModal
+        open={!!selectedPathway}
+        onClose={() => setSelectedPathway(null)}
+        pathwayId={selectedPathway?.pathway_id ?? ''}
+        pathwayName={selectedPathway?.pathway ?? ''}
+        genes={selectedPathway?.genes ?? []}
+      />
     </Card>
   )
 }

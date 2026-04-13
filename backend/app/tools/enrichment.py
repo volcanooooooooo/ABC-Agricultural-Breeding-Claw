@@ -191,8 +191,6 @@ def _run_kegg_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[st
     results = []
     for i, entry in enumerate(pathway_data):
         adj_p = float(adj_pvalues[i])
-        if adj_p > pvalue_cutoff:
-            continue
         pval = entry["pvalue"]
         gene_count = entry["gene_count"]
         total_genes = entry["total_genes"]
@@ -211,7 +209,16 @@ def _run_kegg_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[st
         })
 
     results.sort(key=lambda r: r["pvalue"])
-    return results[:20]
+
+    # 严格过滤：仅保留 adjusted p-value 显著的通路
+    strict = [r for r in results if r["adjusted_pvalue"] <= pvalue_cutoff]
+    if strict:
+        return strict[:20]
+
+    # 当 BH 校正后无显著结果时（常见于大规模研究集），
+    # 返回 raw p-value 最小的前 10 个通路供参考
+    fallback = [r for r in results if r["pvalue"] <= pvalue_cutoff]
+    return fallback[:10]
 
 
 # ---------------------------------------------------------------------------

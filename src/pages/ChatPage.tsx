@@ -14,6 +14,8 @@ import { OntologyModal } from '../components/OntologyModal'
 import { useSSE } from '../hooks/useSSE'
 import { EnrichmentResultCard, EnrichmentResult } from '../components/EnrichmentResultCard'
 import { BlastResultCard, BlastResult } from '../components/BlastResultCard'
+import { AnalysisFlowChart } from '../components/AnalysisFlowChart'
+import iconImg from '../img/icon.png'
 
 const { TextArea } = Input
 const { Sider, Content } = Layout
@@ -1371,9 +1373,7 @@ export default function ChatPage() {
         {/* 顶部栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <RobotOutlined style={{ fontSize: 20, color: '#fff' }} />
-            </div>
+            <img src={iconImg} alt="ABC Logo" width={44} height={44} style={{ borderRadius: '50%' }} />
             <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC 系统</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1455,22 +1455,22 @@ export default function ChatPage() {
           onScroll={handleScroll}
         >
           {!hasMessages ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
-              <div style={{ width: 100, height: 100, borderRadius: '50%', background: 'var(--gradient-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-                <RobotOutlined style={{ fontSize: 48, color: '#fff' }} />
-              </div>
-              <h2 style={{ color: 'var(--color-text-primary)', marginBottom: 8 }}>ABC 系统</h2>
-              <p style={{ textAlign: 'center', maxWidth: 400, lineHeight: 1.8 }}>
-                基于双轨差异分析的育种研究助手<br />
-                试试这样问：<br />
-                "帮我做差异表达分析"
-              </p>
+            <div style={{ flex: 1, display: 'flex' }}>
+              <AnalysisFlowChart />
             </div>
           ) : (
             <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>
               {currentSession?.messages.map(msg => (
                 <div key={msg.id} style={{ marginBottom: 24, display: 'flex', gap: 16, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {msg.role !== 'user' && <Avatar icon={<RobotOutlined />} style={{ background: 'var(--color-bg-dark)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }} />}
+                  {msg.role !== 'user' && (
+                    <Avatar
+                      size={36}
+                      style={{ background: 'transparent', padding: 0, overflow: 'visible' }}
+                      icon={
+                        <img src={iconImg} alt="ABC" width={44} height={44} style={{ borderRadius: '50%' }} />
+                      }
+                    />
+                  )}
                   <div style={{ maxWidth: '90%' }}>
                     {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>ABC</div>}
                     {renderMessageContent(msg)}
