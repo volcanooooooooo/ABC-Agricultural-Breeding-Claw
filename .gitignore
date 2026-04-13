@@ -35,3 +35,6 @@ worktrees/
 backend/backend/
 backend/data/*.db
 backend/data/breeding.db
+
+# Large data files (>100MB)
+backend/data/annotations/MH63RS3.gff3
