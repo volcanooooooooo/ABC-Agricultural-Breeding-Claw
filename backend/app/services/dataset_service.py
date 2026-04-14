@@ -3,7 +3,7 @@ import re
 import uuid
 import json
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime
 import pandas as pd
 
@@ -96,6 +96,48 @@ class DatasetService:
             },
             created_at=now,
             updated_at=now
+        )
+
+        datasets = self._load_datasets()
+        datasets.append(dataset.model_dump())
+        self._save_datasets(datasets)
+
+        return dataset
+
+    def register_temp(self, file_path: str, filename: str, groups: Dict[str, List[str]]) -> Dataset:
+        """Register an uploaded file as a temporary dataset for dual-track analysis."""
+        path = Path(file_path)
+        if not path.exists():
+            raise ValueError(f"File not found: {file_path}")
+
+        # Read file to get gene_count
+        ext = path.suffix.lower()
+        sep = '\t' if ext in {'.tsv', '.txt'} else ','
+        try:
+            df = pd.read_csv(path, sep=sep, index_col=0, usecols=[0])
+            gene_count = len(df)
+        except Exception:
+            gene_count = 0
+
+        all_samples = []
+        for samples in groups.values():
+            all_samples.extend(samples)
+
+        dataset_id = f"ds_tmp_{uuid.uuid4().hex[:8]}"
+        now = datetime.utcnow().isoformat() + "Z"
+
+        dataset = Dataset(
+            id=dataset_id,
+            name=filename,
+            description=f"用户上传文件: {filename}",
+            data_type="expression_matrix",
+            file_path=str(path),
+            file_size=path.stat().st_size,
+            gene_count=max(gene_count, 1),
+            sample_count=max(len(all_samples), 2),
+            groups=groups,
+            created_at=now,
+            updated_at=now,
         )
 
         datasets = self._load_datasets()

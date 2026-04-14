@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, Fragment } from 'react'
 import { Input, Button, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space } from 'antd'
-import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined, MessageOutlined, FileOutlined, ArrowRightOutlined, LogoutOutlined, SettingOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined, MessageOutlined, FileOutlined, ArrowRightOutlined, LogoutOutlined, SettingOutlined, UserSwitchOutlined, UploadOutlined, DatabaseOutlined, EditOutlined } from '@ant-design/icons'
+import ReactMarkdown from 'react-markdown'
 import { chatApi, analysisApi, datasetApi, ontologyApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import AuthModal from '../components/AuthModal'
@@ -15,6 +16,7 @@ import { useSSE } from '../hooks/useSSE'
 import { EnrichmentResultCard, EnrichmentResult } from '../components/EnrichmentResultCard'
 import { BlastResultCard, BlastResult } from '../components/BlastResultCard'
 import { AnalysisFlowChart } from '../components/AnalysisFlowChart'
+import { GroupSelectModal } from '../components/GroupSelectModal'
 import iconImg from '../img/icon.png'
 
 const { TextArea } = Input
@@ -22,7 +24,7 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result' | 'analysis-method-select'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
@@ -30,6 +32,7 @@ interface ChatMessage extends Message {
   geneId?: string
   enrichmentResult?: EnrichmentResult
   blastResult?: BlastResult
+  attachedFile?: { name: string; path: string }
 }
 
 interface ChatSession {
@@ -60,8 +63,16 @@ export default function ChatPage() {
   const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; type: 'fasta' | 'matrix' } | null>(null)
+  const [groupModalOpen, setGroupModalOpen] = useState(false)
+  const [pendingUpload, setPendingUpload] = useState<{
+    filePath: string
+    filename: string
+    columns: string[]
+    rowCount: number
+  } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const matrixFileInputRef = useRef<HTMLInputElement>(null)
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null
   const hasMessages = currentSession && currentSession.messages.length > 0
@@ -271,47 +282,30 @@ export default function ChatPage() {
       return
     }
 
-    // 检查是否是分析意图
-    if (detectAnalysisIntent(input) && datasets.length > 0) {
-      const userMsg: ChatMessage = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        role: 'user',
-        content: input.trim(),
-        timestamp: new Date().toString(),
+    // 检查是否是差异分析意图
+    if (detectAnalysisIntent(input)) {
+      // 无上传文件 → 显示分析方式选择卡片
+      if (!uploadedFile) {
+        const userMsg: ChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          role: 'user',
+          content: input.trim(),
+          timestamp: new Date().toString(),
+        }
+        updateCurrentSession(msgs => [...msgs, userMsg])
+        setInput('')
+
+        // 显示分析方式选择卡片
+        updateCurrentSession(msgs => [...msgs, {
+          id: `${Date.now()}-analysis-method`,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toString(),
+          type: 'analysis-method-select',
+        }])
+        return
       }
-
-      updateCurrentSession(msgs => [...msgs, userMsg])
-      setInput('')
-      setLoading(true)
-      setIsAtBottom(true)
-
-      // 显示"正在检索相关数据集..."
-      const searchingMsgId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      updateCurrentSession(msgs => [...msgs, {
-        id: searchingMsgId,
-        role: 'assistant',
-        content: '正在检索相关数据集...',
-        timestamp: new Date().toString(),
-      }])
-
-      // 模拟检索延迟 1.5 秒
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
-      // 替换检索消息为数据集选择列表
-      updateCurrentSession(msgs =>
-        msgs.map(msg =>
-          msg.id === searchingMsgId
-            ? {
-                ...msg,
-                type: 'dataset-select' as const,
-                candidateDatasets: datasets,
-              }
-            : msg
-        )
-      )
-
-      setLoading(false)
-      return
+      // 有 FASTA 文件但说差异分析 → 走对话
     }
 
     // 检查基因查询意图
@@ -341,8 +335,9 @@ export default function ChatPage() {
     }
 
     let finalContent = input.trim()
+    let sendContent = finalContent
     if (uploadedFile) {
-      finalContent += `\n[上传文件: ${uploadedFile.name}, 路径: ${uploadedFile.path}]`
+      sendContent += `\n[上传文件: ${uploadedFile.name}, 路径: ${uploadedFile.path}]`
     }
 
     const userMessage: ChatMessage = {
@@ -350,14 +345,18 @@ export default function ChatPage() {
       role: 'user',
       content: finalContent,
       timestamp: new Date().toString(),
+      attachedFile: uploadedFile ? { name: uploadedFile.name, path: uploadedFile.path } : undefined,
     }
+
+    // 发送给后端的消息带文件路径
+    const messageForBackend: ChatMessage = { ...userMessage, content: sendContent }
 
     updateCurrentSession(msgs => [...msgs, userMessage])
     setInput('')
     setUploadedFile(null)
     setLoading(true)
     setIsAtBottom(true)
-    await handleNormalChat(userMessage)
+    await handleNormalChat(messageForBackend)
     setLoading(false)
   }
 
@@ -385,6 +384,132 @@ export default function ChatPage() {
     // 调用分析API
     await handleAnalysisRequest('', dataset)
     setLoading(false)
+  }
+
+  // 分析方式选择：内置数据集
+  const handleSelectBuiltinDataset = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'analysis-method-select'))
+    // 显示数据集选择列表
+    updateCurrentSession(msgs => [...msgs, {
+      id: `${Date.now()}-dataset-select`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toString(),
+      type: 'dataset-select',
+      candidateDatasets: datasets,
+    }])
+  }
+
+  // 分析方式选择：输入序列
+  const handleSelectInputSequence = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'analysis-method-select'))
+    updateCurrentSession(msgs => [...msgs, {
+      id: `${Date.now()}-input-hint`,
+      role: 'assistant',
+      content: '请在输入框中粘贴您的表达数据，格式示例：\n\n```\ngene_id\\tWT_1\\tWT_2\\tTreat_1\\tTreat_2\nGene1\\t100\\t120\\t80\\t95\nGene2\\t200\\t180\\t210\\t190\n```\n\n然后输入"帮我做差异分析，对照组为 WT，处理组为 Treat"即可。',
+      timestamp: new Date().toString(),
+    }])
+  }
+
+  // 分析方式选择：上传文件
+  const handleSelectUploadMatrix = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'analysis-method-select'))
+    matrixFileInputRef.current?.click()
+  }
+
+  // 表达矩阵文件选择回调
+  const handleMatrixFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = '' // reset
+
+    // 添加用户消息
+    updateCurrentSession(msgs => [...msgs, {
+      id: `${Date.now()}-upload-user`,
+      role: 'user' as const,
+      content: `上传表达矩阵文件：${file.name}`,
+      timestamp: new Date().toString(),
+    }])
+
+    await handleUploadAndAnalyze(file)
+  }
+
+  // 上传文件 → 自动推断分组 → 双轨分析
+  const handleUploadAndAnalyze = async (file: File) => {
+    try {
+      const res = await analysisApi.uploadMatrix(file)
+      const data = (res.data as any).data ?? res.data
+      const { file_path, filename, columns, row_count, suggested_groups } = data
+
+      if (suggested_groups && Object.keys(suggested_groups).length >= 2) {
+        // 自动推断成功 → 注册临时数据集 → 直接开始双轨分析
+        const groupKeys = Object.keys(suggested_groups)
+        const totalSamples = groupKeys.reduce(
+          (sum: number, k: string) => sum + (suggested_groups[k]?.length || 0), 0
+        )
+
+        // 显示上传成功消息
+        updateCurrentSession(msgs => [...msgs, {
+          id: `${Date.now()}-upload-success`,
+          role: 'assistant' as const,
+          content: `文件 **${filename}** 上传成功（${row_count} 基因, ${totalSamples} 样本）。\n\n已自动识别分组：**${groupKeys[0]}**（${suggested_groups[groupKeys[0]].length} 样本）vs **${groupKeys[1]}**（${suggested_groups[groupKeys[1]].length} 样本），正在开始双轨分析...`,
+          timestamp: new Date().toString(),
+        }])
+
+        // 注册临时数据集
+        const regRes = await analysisApi.registerTemp(file_path, filename, suggested_groups)
+        const dataset: Dataset = (regRes.data as any).data ?? regRes.data
+
+        // 开始双轨分析
+        setLoading(true)
+        setIsAtBottom(true)
+        setAnalysisStartTime(Date.now())
+        await handleAnalysisRequest('', dataset)
+        setLoading(false)
+      } else {
+        // 自动推断失败 → 弹出分组选择 Modal
+        message.info(`文件 ${filename} 上传成功，请手动选择分组`)
+        setPendingUpload({ filePath: file_path, filename, columns: columns || [], rowCount: row_count })
+        setGroupModalOpen(true)
+      }
+    } catch (err: any) {
+      message.error('文件上传失败: ' + (err.message || '未知错误'))
+    }
+  }
+
+  // 用户手动确认分组后 → 注册临时数据集 → 双轨分析
+  const handleGroupConfirm = async (groups: Record<string, string[]>) => {
+    if (!pendingUpload) return
+    setGroupModalOpen(false)
+
+    const groupKeys = Object.keys(groups)
+
+    // 显示确认消息
+    updateCurrentSession(msgs => [...msgs, {
+      id: `${Date.now()}-group-confirmed`,
+      role: 'assistant' as const,
+      content: `文件 **${pendingUpload.filename}** 分组确认：**${groupKeys[0]}**（${groups[groupKeys[0]].length} 样本）vs **${groupKeys[1]}**（${groups[groupKeys[1]].length} 样本），正在开始双轨分析...`,
+      timestamp: new Date().toString(),
+    }])
+
+    try {
+      // 注册临时数据集
+      const regRes = await analysisApi.registerTemp(
+        pendingUpload.filePath, pendingUpload.filename, groups
+      )
+      const dataset: Dataset = (regRes.data as any).data ?? regRes.data
+
+      // 开始双轨分析
+      setLoading(true)
+      setIsAtBottom(true)
+      setAnalysisStartTime(Date.now())
+      await handleAnalysisRequest('', dataset)
+      setLoading(false)
+    } catch (err: any) {
+      message.error('注册数据集失败: ' + (err.message || '未知错误'))
+    }
+
+    setPendingUpload(null)
   }
 
   // 普通对话
@@ -646,19 +771,31 @@ export default function ChatPage() {
     e.stopPropagation()
     const file = e.dataTransfer.files[0]
     if (!file) return
-    const exts = ['.fa', '.fasta', '.fna', '.faa', '.fas', '.txt']
+
+    const fastaExts = ['.fa', '.fasta', '.fna', '.faa', '.fas']
+    const matrixExts = ['.csv', '.tsv', '.xls', '.xlsx']
     const ext = '.' + (file.name.split('.').pop()?.toLowerCase() ?? '')
-    if (!exts.includes(ext)) {
-      message.error('请上传 FASTA 格式文件（.fa, .fasta, .fna, .faa）')
-      return
-    }
-    try {
-      const res = await analysisApi.uploadFasta(file)
-      const data = (res.data as any).data ?? res.data
-      setUploadedFile({ path: data.file_path, name: data.filename ?? file.name })
-      message.success(`文件 ${file.name} 上传成功`)
-    } catch (err: any) {
-      message.error('文件上传失败: ' + (err.message || '未知错误'))
+
+    if (fastaExts.includes(ext)) {
+      try {
+        const res = await analysisApi.uploadFasta(file)
+        const data = (res.data as any).data ?? res.data
+        setUploadedFile({ path: data.file_path, name: data.filename ?? file.name, type: 'fasta' })
+        message.success(`文件 ${file.name} 上传成功`)
+      } catch (err: any) {
+        message.error('文件上传失败: ' + (err.message || '未知错误'))
+      }
+    } else if (matrixExts.includes(ext) || ext === '.txt') {
+      // 添加用户消息
+      updateCurrentSession(msgs => [...msgs, {
+        id: `${Date.now()}-upload-user`,
+        role: 'user' as const,
+        content: `上传表达矩阵文件：${file.name}`,
+        timestamp: new Date().toString(),
+      }])
+      await handleUploadAndAnalyze(file)
+    } else {
+      message.error('请上传 FASTA 格式文件（.fa, .fasta）或表达矩阵文件（.csv, .tsv）')
     }
   }
 
@@ -930,6 +1067,103 @@ export default function ChatPage() {
       )
     }
 
+    // 分析方式选择卡片
+    if (msg.type === 'analysis-method-select') {
+      return (
+        <div style={{ background: 'var(--color-bg-card)', padding: 16, borderRadius: 16, border: '1px solid var(--color-border)', minWidth: 400 }}>
+          <div style={{ marginBottom: 12, color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 600 }}>
+            请选择差异分析方式：
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div
+              onClick={handleSelectBuiltinDataset}
+              style={{
+                padding: '14px 16px',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-accent)'
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)'
+                e.currentTarget.style.background = 'var(--color-bg-input)'
+              }}
+            >
+              <DatabaseOutlined style={{ fontSize: 20, color: 'var(--color-accent)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>选择内置数据集</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>从已有数据集中选择进行双轨分析</div>
+              </div>
+            </div>
+            <div
+              onClick={handleSelectInputSequence}
+              style={{
+                padding: '14px 16px',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-accent)'
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)'
+                e.currentTarget.style.background = 'var(--color-bg-input)'
+              }}
+            >
+              <EditOutlined style={{ fontSize: 20, color: 'var(--color-accent)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>手动输入表达数据</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>粘贴表格格式的基因表达数据</div>
+              </div>
+            </div>
+            <div
+              onClick={handleSelectUploadMatrix}
+              style={{
+                padding: '14px 16px',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-accent)'
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)'
+                e.currentTarget.style.background = 'var(--color-bg-input)'
+              }}
+            >
+              <UploadOutlined style={{ fontSize: 20, color: 'var(--color-accent)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>上传表达矩阵文件</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>支持 CSV/TSV 格式文件</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     // 数据集选择卡片
     if (msg.type === 'dataset-select' && msg.candidateDatasets) {
       return (
@@ -1174,16 +1408,15 @@ export default function ChatPage() {
       return (
         <div>
           {cleanContent && (
-            <div style={{
+            <div className="markdown-body" style={{
               background: 'var(--color-bg-card)',
               color: 'var(--color-text-primary)',
               padding: '12px 16px',
               borderRadius: 16,
               lineHeight: 1.6,
               marginBottom: 8,
-              whiteSpace: 'pre-wrap',
             }}>
-              {cleanContent}
+              <ReactMarkdown>{cleanContent}</ReactMarkdown>
             </div>
           )}
           <BlastResultCard result={blastResult} />
@@ -1198,16 +1431,15 @@ export default function ChatPage() {
       return (
         <div>
           {cleanContent && (
-            <div style={{
+            <div className="markdown-body" style={{
               background: 'var(--color-bg-card)',
               color: 'var(--color-text-primary)',
               padding: '12px 16px',
               borderRadius: 16,
               lineHeight: 1.6,
               marginBottom: 8,
-              whiteSpace: 'pre-wrap',
             }}>
-              {cleanContent}
+              <ReactMarkdown>{cleanContent}</ReactMarkdown>
             </div>
           )}
           <EnrichmentResultCard result={enrichmentResult} />
@@ -1230,7 +1462,30 @@ export default function ChatPage() {
         borderRadius: 16,
         lineHeight: 1.6
       }}>
-        {msg.content}
+        {msg.role === 'assistant' ? (
+          <div className="markdown-body">
+            <ReactMarkdown>{msg.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <>
+            {msg.content}
+            {msg.attachedFile && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginLeft: msg.content ? 8 : 0,
+                background: 'rgba(255,255,255,0.2)',
+                padding: '4px 10px',
+                borderRadius: 8,
+                fontSize: 13,
+              }}>
+                <FileOutlined style={{ fontSize: 14 }} />
+                <span>{msg.attachedFile.name}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
     )
   }
@@ -1368,6 +1623,17 @@ export default function ChatPage() {
             setOntologyNodeId(undefined)
           }}
           nodeId={ontologyNodeId}
+        />
+
+        {/* 分组选择弹窗（上传文件自动推断失败时） */}
+        <GroupSelectModal
+          open={groupModalOpen}
+          columns={pendingUpload?.columns || []}
+          onConfirm={handleGroupConfirm}
+          onCancel={() => {
+            setGroupModalOpen(false)
+            setPendingUpload(null)
+          }}
         />
 
         {/* 顶部栏 */}
@@ -1579,6 +1845,15 @@ export default function ChatPage() {
           {hasMessages && <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>AI 生成内容可能存在错误，请核实重要信息</div>}
         </div>
       </Content>
+
+      {/* 隐藏的表达矩阵文件上传输入 */}
+      <input
+        ref={matrixFileInputRef}
+        type="file"
+        accept=".csv,.tsv,.txt,.xls,.xlsx"
+        style={{ display: 'none' }}
+        onChange={handleMatrixFileChange}
+      />
     </Layout>
   )
 }

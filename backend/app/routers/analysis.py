@@ -287,6 +287,125 @@ async def upload_fasta(file: UploadFile = File(...)):
     return {"status": "success", "file_path": str(dest), "filename": file.filename}
 
 
+# ============ 上传表达矩阵 + 自动分组推断 ============
+
+CONTROL_KEYWORDS = ['wt', 'ck', 'ctrl', 'control', 'mock', 'nc', 'wild', 'normal', 'untreated']
+
+
+def infer_groups(columns: list) -> dict:
+    """Auto-detect control/treatment groups from column names.
+
+    Strategy: columns containing any CONTROL_KEYWORDS substring → control group,
+    all others → treatment group. Return None if detection fails.
+    """
+    control_cols = []
+    treatment_cols = []
+
+    for col in columns:
+        col_lower = col.lower()
+        if any(kw in col_lower for kw in CONTROL_KEYWORDS):
+            control_cols.append(col)
+        else:
+            treatment_cols.append(col)
+
+    # Need at least 2 samples per group for t-test
+    if len(control_cols) >= 2 and len(treatment_cols) >= 2:
+        control_name = _extract_group_name(control_cols) or "control"
+        treatment_name = _extract_group_name(treatment_cols) or "treatment"
+        return {
+            control_name: control_cols,
+            treatment_name: treatment_cols,
+        }
+    return None
+
+
+def _extract_group_name(cols: list) -> str:
+    """Extract a short group label from column names (e.g. 'DS_WT_rep1' → 'WT')."""
+    for kw in CONTROL_KEYWORDS:
+        for col in cols:
+            if kw in col.lower():
+                return kw.upper()
+    if not cols:
+        return ""
+    parts_list = [col.replace("_", " ").replace("-", " ").split() for col in cols]
+    if not parts_list:
+        return ""
+    common = set(parts_list[0])
+    for parts in parts_list[1:]:
+        common &= set(parts)
+    # Remove numeric tokens (like rep1, rep2)
+    common = {p for p in common if not p.replace("rep", "").isdigit()}
+    return "_".join(sorted(common)) if common else ""
+
+
+@router.post("/upload-matrix")
+async def upload_matrix(file: UploadFile = File(...)):
+    """上传表达矩阵文件（CSV/TSV），用于差异表达分析"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    allowed_exts = {".csv", ".tsv", ".txt", ".xls", ".xlsx"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型 '{ext}'，请上传 CSV/TSV 格式文件")
+
+    uploads_dir = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    dest = uploads_dir / safe_name
+
+    content = await file.read()
+    dest.write_bytes(content)
+
+    # 尝试读取文件获取基本信息
+    columns = []
+    row_count = 0
+    try:
+        sep = '\t' if ext in {'.tsv', '.txt'} else ','
+        df = pd.read_csv(dest, sep=sep, index_col=0, nrows=5)
+        columns = list(df.columns)
+        row_count_df = pd.read_csv(dest, sep=sep, index_col=0, usecols=[0])
+        row_count = len(row_count_df)
+    except Exception:
+        pass
+
+    # Auto-detect groups
+    suggested_groups = infer_groups(columns) if columns else None
+
+    return {
+        "status": "success",
+        "data": {
+            "file_path": str(dest),
+            "filename": file.filename,
+            "columns": columns,
+            "row_count": row_count,
+            "suggested_groups": suggested_groups,
+        }
+    }
+
+
+class RegisterTempRequest(BaseModel):
+    """注册临时数据集请求"""
+    file_path: str
+    filename: str
+    groups: Dict[str, List[str]]
+
+
+@router.post("/register-temp")
+async def register_temp_dataset(request: RegisterTempRequest):
+    """将已上传的文件注册为临时数据集，用于双轨分析"""
+    try:
+        dataset = dataset_service.register_temp(
+            file_path=request.file_path,
+            filename=request.filename,
+            groups=request.groups,
+        )
+        return {"status": "success", "data": dataset.model_dump()}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ============ 双轨分析 API 和 SSE ============
 
 # 存储正在进行的任务（带超时清理）

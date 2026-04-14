@@ -198,6 +198,27 @@ export const analysisApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // 表达矩阵文件上传（用于差异分析）
+  uploadMatrix: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<ApiResponse<{
+      file_path: string
+      filename: string
+      columns: string[]
+      row_count: number
+      suggested_groups: Record<string, string[]> | null
+    }>>('/analysis/upload-matrix', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  // 注册临时数据集（上传文件 → 双轨分析）
+  registerTemp: (filePath: string, filename: string, groups: Record<string, string[]>) =>
+    api.post<ApiResponse<Dataset>>('/analysis/register-temp', {
+      file_path: filePath,
+      filename: filename,
+      groups: groups,
+    }),
 }
 
 // Dataset types
