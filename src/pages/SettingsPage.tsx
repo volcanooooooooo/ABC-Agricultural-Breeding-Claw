@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Card, Form, Input, Select, Button, Space, message, Divider, Tabs, Tag } from 'antd'
+import { Card, Form, Input, InputNumber, Select, Button, Space, message, Divider, Tabs, Tag } from 'antd'
 import { SaveOutlined, KeyOutlined, GlobalOutlined, BgColorsOutlined, CheckCircleOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { settingsApi } from '../api/client'
 
@@ -96,7 +96,10 @@ export default function SettingsPage() {
           <Form.Item
             name="llm_api_key"
             label="API Key"
-            rules={[{ required: true, message: '请输入 API Key' }]}
+            rules={[
+              { required: true, message: '请输入 API Key' },
+              { min: 10, message: 'API Key 长度不正确' },
+            ]}
           >
             <Input.Password placeholder="输入 API Key" />
           </Form.Item>
@@ -109,8 +112,8 @@ export default function SettingsPage() {
             </Select>
           </Form.Item>
 
-          <Form.Item name="llm_temperature" label="Temperature (0-1)">
-            <Input type="number" min={0} max={1} step={0.1} />
+          <Form.Item name="llm_temperature" label="Temperature" rules={[{ required: true, message: '请设置温度参数' }]}>
+            <InputNumber min={0} max={1} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
 
           <Divider />
