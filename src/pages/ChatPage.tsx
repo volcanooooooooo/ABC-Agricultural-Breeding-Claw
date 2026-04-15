@@ -178,12 +178,6 @@ export default function ChatPage() {
     }))
   }
 
-  // 识别富集分析意图（优先级高于差异分析）
-  const detectEnrichmentIntent = (text: string): boolean => {
-    const keywords = ['富集', 'kegg', 'go分析', 'go富集', 'pathway', '通路分析']
-    return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
-  }
-
   // 识别差异表达分析意图（仅斜杠命令）
   const detectAnalysisIntent = (text: string): boolean => {
     const commands = ['/analyze', '/diff', '/analyse']
@@ -720,51 +714,26 @@ export default function ChatPage() {
     }
   }
 
-  // 从差异分析结果触发富集分析
+  // 从差异分析结果触发富集分析（通过 Agent）
   const handleEnrichmentFromResult = async (analysisResult: AnalysisResult) => {
     // 移除富集提示卡片
     updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
 
-    // 使用全部显著基因，兼容旧数据回退到 significant_genes
-    const allGenes = analysisResult.tool_result.all_significant_genes
-      ?? analysisResult.tool_result.significant_genes
-    const geneIds = allGenes.map(g => g.gene_id)
+    const totalSig = analysisResult.tool_result.total_significant
+      ?? analysisResult.tool_result.significant_genes.length
 
-    const loadingId = `enrichment-loading-${Date.now()}`
-
-    // 插入加载消息
-    const loadingMsg: ChatMessage = {
-      id: loadingId,
-      role: 'assistant',
-      content: `正在对 ${geneIds.length} 个显著基因进行 KEGG/GO 富集分析...`,
+    // 构造用户消息发送给 Agent
+    const userMsg: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'user',
+      content: `请对差异分析结果 ${analysisResult.id} 中的 ${totalSig} 个显著基因进行 KEGG/GO 富集分析`,
       timestamp: new Date().toString(),
-      type: 'enrichment-loading',
     }
-    updateCurrentSession(msgs => [...msgs, loadingMsg])
+    updateCurrentSession(msgs => [...msgs, userMsg])
     setIsAtBottom(true)
-
-    try {
-      const res = await analysisApi.runEnrichment(geneIds)
-      const enrichmentData: EnrichmentResult = res.data.data
-
-      // 替换 loading 为结果
-      updateCurrentSession(msgs =>
-        msgs.map(msg =>
-          msg.id === loadingId
-            ? { ...msg, type: 'enrichment-result' as const, content: '', enrichmentResult: enrichmentData }
-            : msg
-        )
-      )
-    } catch (err: any) {
-      // 替换 loading 为错误提示
-      updateCurrentSession(msgs =>
-        msgs.map(msg =>
-          msg.id === loadingId
-            ? { ...msg, type: 'text' as const, content: `富集分析失败: ${err?.response?.data?.detail || err.message || '未知错误'}` }
-            : msg
-        )
-      )
-    }
+    setLoading(true)
+    await handleNormalChat(userMsg)
+    setLoading(false)
   }
 
   // 跳过富集分析提示
