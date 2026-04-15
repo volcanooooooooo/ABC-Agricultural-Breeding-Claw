@@ -71,6 +71,7 @@ export default function ChatPage() {
     columns: string[]
     rowCount: number
   } | null>(null)
+  const [siderCollapsed, setSiderCollapsed] = useState(window.innerWidth < 768)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const matrixFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -1565,7 +1566,21 @@ export default function ChatPage() {
   return (
     <Layout style={{ height: '100vh', background: 'var(--color-bg-dark)' }}>
       {/* 右侧会话列表 */}
-      <Sider width={280} style={{ background: 'var(--color-bg-card)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
+      <Sider
+        width={280}
+        collapsedWidth={0}
+        collapsed={siderCollapsed}
+        breakpoint="md"
+        onBreakpoint={(broken) => setSiderCollapsed(broken)}
+        trigger={null}
+        collapsible
+        style={{
+          background: '#faf8f5',
+          borderRight: '1px solid var(--color-border)',
+          height: '100vh',
+          overflow: 'auto',
+        }}
+      >
         <div style={{ padding: 20 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={createNewSession} block size="large" style={{ background: 'var(--gradient-accent)', border: 'none' }}>
             新建对话
@@ -1653,6 +1668,14 @@ export default function ChatPage() {
         {/* 顶部栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {siderCollapsed && (
+              <Button
+                type="text"
+                icon={<MessageOutlined />}
+                onClick={() => setSiderCollapsed(false)}
+                style={{ marginRight: 8 }}
+              />
+            )}
             <img src={iconImg} alt="ABC Logo" width={44} height={44} style={{ borderRadius: '50%' }} />
             <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC: Agricultural Breeding Claw</span>
           </div>
