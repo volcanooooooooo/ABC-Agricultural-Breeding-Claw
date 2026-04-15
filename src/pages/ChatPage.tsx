@@ -1788,6 +1788,7 @@ export default function ChatPage() {
                   {msg.role !== 'user' && (
                     <Avatar
                       size={36}
+                      alt="AI 助手"
                       style={{ background: 'transparent', padding: 0, overflow: 'visible' }}
                       icon={
                         <img src={iconImg} alt="ABC" width={44} height={44} style={{ borderRadius: '50%' }} />
@@ -1798,7 +1799,7 @@ export default function ChatPage() {
                     {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>ABC</div>}
                     {renderMessageContent(msg)}
                   </div>
-                  {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
+                  {msg.role === 'user' && <Avatar alt="用户" icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -1865,6 +1866,7 @@ export default function ChatPage() {
               </Tag>
             )}
             <TextArea
+              aria-label="输入分析问题"
               value={input}
               onChange={(e) => {
                 const val = e.target.value
@@ -1885,6 +1887,7 @@ export default function ChatPage() {
               disabled={loading}
             />
             <Button
+              aria-label="发送消息"
               type="primary"
               shape="circle"
               icon={<SendOutlined />}
