@@ -897,10 +897,15 @@ export default function ChatPage() {
 
   const tryParseEnrichmentResult = (content: string): EnrichmentResult | null => {
     if (!content) return null
-    const match = content.match(/<!-- ENRICHMENT_DATA: (.+?) -->/)
-    if (!match) return null
+    const startMarker = '<!-- ENRICHMENT_DATA: '
+    const endMarker = ' -->'
+    const startIdx = content.indexOf(startMarker)
+    if (startIdx === -1) return null
+    const jsonStart = startIdx + startMarker.length
+    const endIdx = content.indexOf(endMarker, jsonStart)
+    if (endIdx === -1) return null
     try {
-      return JSON.parse(match[1]) as EnrichmentResult
+      return JSON.parse(content.substring(jsonStart, endIdx)) as EnrichmentResult
     } catch {
       return null
     }
@@ -908,10 +913,15 @@ export default function ChatPage() {
 
   const tryParseBlastResult = (content: string): BlastResult | null => {
     if (!content) return null
-    const match = content.match(/<!-- BLAST_DATA: (.+?) -->/)
-    if (!match) return null
+    const startMarker = '<!-- BLAST_DATA: '
+    const endMarker = ' -->'
+    const startIdx = content.indexOf(startMarker)
+    if (startIdx === -1) return null
+    const jsonStart = startIdx + startMarker.length
+    const endIdx = content.indexOf(endMarker, jsonStart)
+    if (endIdx === -1) return null
     try {
-      return JSON.parse(match[1]) as BlastResult
+      return JSON.parse(content.substring(jsonStart, endIdx)) as BlastResult
     } catch {
       return null
     }
@@ -1427,7 +1437,11 @@ export default function ChatPage() {
     // 检测消息内容是否包含富集分析数据
     const enrichmentResult = tryParseEnrichmentResult(msg.content)
     if (enrichmentResult) {
-      const cleanContent = msg.content.replace(/<!-- ENRICHMENT_DATA: .+? -->/, '').trim()
+      const markerStart = msg.content.indexOf('<!-- ENRICHMENT_DATA: ')
+      const markerEnd = msg.content.indexOf(' -->', markerStart)
+      const cleanContent = markerStart !== -1 && markerEnd !== -1
+        ? (msg.content.slice(0, markerStart) + msg.content.slice(markerEnd + 4)).trim()
+        : msg.content.trim()
       return (
         <div>
           {cleanContent && (

@@ -187,6 +187,7 @@ async def chat(request: ChatRequest):
             asyncio.to_thread(_agent_loop, messages),
             timeout=180.0
         )
+        print(f"[CHAT RESPONSE] {content[:500]}...")
         return ChatResponse(content=content)
     except asyncio.TimeoutError:
         raise HTTPException(
