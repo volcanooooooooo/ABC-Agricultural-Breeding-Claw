@@ -268,19 +268,19 @@ export default function ChatPage() {
       return
     }
 
-    // 检查是否是知识本体查询意图（已禁用）
-    // if (detectOntologyIntent(input)) {
-    //   const userMsg: ChatMessage = {
-    //     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    //     role: 'user',
-    //     content: input.trim(),
-    //     timestamp: new Date().toString(),
-    //   }
-    //   updateCurrentSession(msgs => [...msgs, userMsg])
-    //   setInput('')
-    //   setOntologyModalOpen(true)
-    //   return
-    // }
+    // 检查是否是知识本体查询意图
+    if (detectOntologyIntent(input)) {
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: input.trim(),
+        timestamp: new Date().toString(),
+      }
+      updateCurrentSession(msgs => [...msgs, userMsg])
+      setInput('')
+      setOntologyModalOpen(true)
+      return
+    }
 
     // 检查是否是差异分析意图
     if (detectAnalysisIntent(input)) {
@@ -308,31 +308,31 @@ export default function ChatPage() {
       // 有 FASTA 文件但说差异分析 → 走对话
     }
 
-    // 检查基因查询意图（已禁用 - 本体相关功能）
-    // const detectedGeneId = detectGeneQueryIntent(input)
-    // if (detectedGeneId && currentSession) {
-    //   // 查找当前会话中的分析结果
-    //   const resultMsg = currentSession.messages.find(
-    //     msg => msg.type === 'progress' && msg.analysisResult
-    //   )
-    //
-    //   // 无论是否有 analysisResult，都打开 GeneDetailModal
-    //   // 如果没有，会自动从后端获取历史分析
-    //   const userMsg: ChatMessage = {
-    //     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    //     role: 'user',
-    //     content: input.trim(),
-    //     timestamp: new Date().toString(),
-    //     type: 'gene-query',
-    //     geneId: detectedGeneId
-    //   }
-    //   updateCurrentSession(msgs => [...msgs, userMsg])
-    //   setInput('')
-    //   setSelectedGene(detectedGeneId)
-    //   setSelectedResult(resultMsg?.analysisResult || null)  // 可能为 null，Modal 会自动从后端获取
-    //   setGeneModalOpen(true)
-    //   return
-    // }
+    // 检查基因查询意图
+    const detectedGeneId = detectGeneQueryIntent(input)
+    if (detectedGeneId && currentSession) {
+      // 查找当前会话中的分析结果
+      const resultMsg = currentSession.messages.find(
+        msg => msg.type === 'progress' && msg.analysisResult
+      )
+
+      // 无论是否有 analysisResult，都打开 GeneDetailModal
+      // 如果没有，会自动从后端获取历史分析
+      const userMsg: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'user',
+        content: input.trim(),
+        timestamp: new Date().toString(),
+        type: 'gene-query',
+        geneId: detectedGeneId
+      }
+      updateCurrentSession(msgs => [...msgs, userMsg])
+      setInput('')
+      setSelectedGene(detectedGeneId)
+      setSelectedResult(resultMsg?.analysisResult || null)  // 可能为 null，Modal 会自动从后端获取
+      setGeneModalOpen(true)
+      return
+    }
 
     let finalContent = input.trim()
     let sendContent = finalContent
