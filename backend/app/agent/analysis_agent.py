@@ -53,6 +53,19 @@ def _dispatch_tool(name: str, arguments: Dict[str, Any]) -> str:
                 if "hits" in data and len(data["hits"]) > 30:
                     data["hits"] = data["hits"][:30]
                     data["hits_truncated"] = True
+                # 富集分析结果：只保留前 20 个 KEGG 和 GO 项，每项基因列表截断到 10 个
+                if "kegg_results" in data:
+                    for item in data["kegg_results"]:
+                        if len(item.get("genes", [])) > 10:
+                            item["genes"] = item["genes"][:10]
+                    if len(data["kegg_results"]) > 20:
+                        data["kegg_results"] = data["kegg_results"][:20]
+                if "go_results" in data:
+                    for item in data["go_results"]:
+                        if len(item.get("genes", [])) > 10:
+                            item["genes"] = item["genes"][:10]
+                    if len(data["go_results"]) > 20:
+                        data["go_results"] = data["go_results"][:20]
                 result = json.dumps(data, ensure_ascii=False)
             except Exception:
                 pass
