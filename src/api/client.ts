@@ -25,6 +25,18 @@ api.interceptors.response.use(
       localStorage.removeItem('token')
       // 可以在这里触发重新登录
     }
+    // 超时友好提示
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      error.friendlyMessage = '请求超时，请检查网络连接后重试'
+    }
+    // 网络断开
+    else if (!error.response) {
+      error.friendlyMessage = '网络连接失败，请检查网络后重试'
+    }
+    // 服务端错误
+    else if (error.response?.status >= 500) {
+      error.friendlyMessage = error.response.data?.detail || '服务器暂时不可用，请稍后重试'
+    }
     return Promise.reject(error)
   }
 )

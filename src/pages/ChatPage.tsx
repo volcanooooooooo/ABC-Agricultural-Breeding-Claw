@@ -531,9 +531,13 @@ export default function ChatPage() {
       )
     } catch (error: any) {
       console.error('Chat error:', error)
-      const errorMsg = error.response?.data?.detail || error.message || '未知错误'
+      const errorMsg = error.friendlyMessage
+        || error.response?.data?.detail
+        || '抱歉，发生了一些错误，请稍后重试'
       updateCurrentSession(msgs =>
-        msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: `抱歉，发生了一些错误：${errorMsg}`, isLoading: false } : msg)
+        msgs.map(msg => msg.id === assistantMessage.id
+          ? { ...msg, content: errorMsg, isLoading: false }
+          : msg)
       )
     }
   }
