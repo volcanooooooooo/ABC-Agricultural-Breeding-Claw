@@ -208,9 +208,9 @@ export default function SettingsPage() {
       children: (
         <div>
           <Card style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)', marginBottom: 16 }}>
-            <h3 style={{ color: 'var(--color-accent)', marginBottom: 12 }}>育种 AI 科学家系统</h3>
+            <h3 style={{ color: 'var(--color-accent)', marginBottom: 12 }}>ABC: Agricultural Breeding Claw</h3>
             <p style={{ color: 'var(--color-text-secondary)' }}>版本: 1.0.0</p>
-            <p style={{ color: 'var(--color-text-secondary)' }}>基于本体和 AI 的育种研究辅助系统</p>
+            <p style={{ color: 'var(--color-text-secondary)' }}>基于 AI 的农业育种智能助手系统</p>
           </Card>
           <Card style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border)' }}>
             <h4 style={{ color: 'var(--color-text-primary)', marginBottom: 12 }}>技术栈</h4>

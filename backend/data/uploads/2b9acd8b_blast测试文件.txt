@@ -1,0 +1,5 @@
+OsMH_01T0000100-mRNA-1                                                                                                                                                                                                  
+ATGCCTCCTGTCCAATCCCCCCATCCCATTCGACTACCGAATAAGAGAAGCAGGCAGGCAGACAAACCCT                                                                                                                                                   
+TGAACCAAGGAGTCCTCGCTGAGGAAGCTTTGGATCCACGACGCAGCTATGGCCTCCCCGCCCACCAGG                                                                                                                                                    
+CCGCCAGCCACAACCAGCTGACTAGGTCGCATGCATCATCAGATTTCAATCTCCCTTCGTTCCCTGGAGC                                                                                                                                                   
+AATCAGCTGCTCCTCGACGGCGAGGGAGATG 

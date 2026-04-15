@@ -26,6 +26,33 @@
       "owner": null,
       "created_at": "2024-03-19T00:00:00.000000Z",
       "updated_at": "2024-03-19T00:00:00.000000Z"
+    },
+    {
+      "id": "ds_tmp_03337311",
+      "name": "GSE242459_Count_matrix.txt",
+      "description": "用户上传文件: GSE242459_Count_matrix.txt",
+      "data_type": "expression_matrix",
+      "file_path": "/data/chenghuang11/ABC-Agricultural-Breeding-Claw/backend/data/uploads/7a79cf31_GSE242459_Count_matrix.txt",
+      "file_size": 2262928,
+      "gene_count": 59903,
+      "sample_count": 8,
+      "groups": {
+        "WT": [
+          "DS_WT_rep1",
+          "DS_WT_rep2",
+          "N_WT_rep1",
+          "N_WT_rep2",
+          "RE_WT_rep1",
+          "RE_WT_rep2"
+        ],
+        "DS_osbzip23": [
+          "DS_osbzip23_rep1",
+          "DS_osbzip23_rep2"
+        ]
+      },
+      "owner": null,
+      "created_at": "2026-04-14T09:20:16.024484Z",
+      "updated_at": "2026-04-14T09:20:16.024484Z"
     }
   ]
 }

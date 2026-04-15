@@ -1735,8 +1735,28 @@ export default function ChatPage() {
           onScroll={handleScroll}
         >
           {!hasMessages ? (
-            <div style={{ flex: 1, display: 'flex' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
               <AnalysisFlowChart />
+              <Card style={{ maxWidth: 600, marginTop: 32, textAlign: 'center' }}>
+                <h3 style={{ marginBottom: 16 }}>👋 欢迎使用 ABC 农业育种智能助手</h3>
+                <p style={{ color: '#666', marginBottom: 20 }}>
+                  通过自然语言描述您的分析需求，系统将自动理解并执行
+                </p>
+                <div style={{ textAlign: 'left', background: '#fafafa', padding: 16, borderRadius: 8 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <strong>💡 快速开始：</strong>
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    • 输入 <code>/tools</code> 查看所有可用工具
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    • 输入 <code>/datasets</code> 查看可用数据集
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    • 或直接描述：<em>"分析 WT 和 osbzip23 的差异表达基因"</em>
+                  </div>
+                </div>
+              </Card>
             </div>
           ) : (
             <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '0 24px' }}>

@@ -1,6 +1,7 @@
 """Differential expression analysis tool - plain function + JSON schema for Agent Loop."""
 
 import json
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 

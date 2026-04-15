@@ -1,5 +1,6 @@
-/* 育种 AI 科学家系统 - 温暖奶油风格 */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+/* ABC: Agricultural Breeding Claw - 温暖奶油风格 */
+/* Google Fonts 在国内可能无法访问，改用本地字体回退 */
+/* @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap'); */
 
 :root {
   /* 主色调 - 暖白奶油 */
@@ -232,4 +233,112 @@ a:hover {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+}
+
+/* Markdown 渲染样式 */
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+}
+
+.markdown-body p {
+  margin: 0 0 8px;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 12px 0 8px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.markdown-body h1 { font-size: 20px; }
+.markdown-body h2 { font-size: 17px; }
+.markdown-body h3 { font-size: 15px; }
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
+.markdown-body li {
+  margin-bottom: 4px;
+}
+
+.markdown-body code {
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-accent-hover);
+}
+
+.markdown-body pre {
+  background: #2d2a24;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e8e0d4;
+  font-size: 13px;
+}
+
+.markdown-body blockquote {
+  margin: 8px 0;
+  padding: 8px 16px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg-input);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-text-secondary);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--color-border);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--color-bg-input);
+  font-weight: 600;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.markdown-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 12px 0;
 }

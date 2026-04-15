@@ -38,3 +38,23 @@ backend/data/breeding.db
 
 # Large data files (>100MB)
 backend/data/annotations/MH63RS3.gff3
+
+# BLAST database files (large, generated locally)
+backend/data/blastdb/MH63/*.fasta
+backend/data/blastdb/MH63/*.fasta.gz
+backend/data/blastdb/MH63/*.fa
+backend/data/blastdb/MH63/*.nsq
+backend/data/blastdb/MH63/*.nhr
+backend/data/blastdb/MH63/*.nin
+backend/data/blastdb/MH63/*.nsd
+backend/data/blastdb/MH63/*.nsi
+backend/data/blastdb/MH63/*.nog
+backend/data/blastdb/MH63_pep/*.fa
+backend/data/blastdb/MH63_pep/*.psq
+backend/data/blastdb/MH63_pep/*.phr
+backend/data/blastdb/MH63_pep/*.pin
+backend/data/blastdb/MH63_pep/*.psd
+backend/data/blastdb/MH63_pep/*.psi
+backend/data/blastdb/MH63_pep/*.pog
+backend/data/blastdb/MH63RS3.gff3.gz
+backend/data/blastdb/extract_sequences.py
