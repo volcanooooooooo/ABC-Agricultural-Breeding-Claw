@@ -56,6 +56,8 @@ def differential_expression_analysis(
 
         gene_results = []
         significant_genes = []
+        skipped_zero = 0
+        skipped_variance = 0
 
         for gene_id, row in df.iterrows():
             ctrl_vals = [row[s] for s in control_samples]
@@ -68,12 +70,14 @@ def differential_expression_analysis(
             trt_mean = np.mean(trt_vals)
 
             if ctrl_mean <= 0 or trt_mean <= 0:
+                skipped_zero += 1
                 continue
 
             log2fc = float(np.log2(trt_mean / ctrl_mean))
             _, pvalue = stats.ttest_ind(ctrl_vals, trt_vals)
             pvalue = float(pvalue)
             if np.isnan(pvalue):
+                skipped_variance += 1
                 continue
 
             is_sig = pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold
@@ -106,6 +110,8 @@ def differential_expression_analysis(
             "significant_genes_count": len(significant_genes),
             "upregulated_count": len(up),
             "downregulated_count": len(down),
+            "skipped_zero_expression": skipped_zero,
+            "skipped_no_variance": skipped_variance,
             "control_group": control_group,
             "treatment_group": treatment_group,
             "control_samples": control_samples,
