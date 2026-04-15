@@ -64,7 +64,7 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 3. **以上两者都没有**：询问用户提供基因 ID 列表，**不要**自动运行差异表达分析。
 
 富集分析结果处理：
-- 用中文解读 top 5 KEGG 通路和 top 5 GO term
+- 用一句话总结最显著的发现（如"共发现 X 个显著 KEGG 通路和 Y 个 GO term，最显著通路为 XXX"）
 - 回复末尾追加（JSON 必须单行）：<!-- ENRICHMENT_DATA: {完整JSON} -->
 
 ## 重要原则
