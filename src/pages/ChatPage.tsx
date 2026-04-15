@@ -70,7 +70,7 @@ export default function ChatPage() {
   const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; type: 'fasta' | 'matrix' } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; type: 'fasta' | 'matrix' | 'genelist' } | null>(null)
   const [groupModalOpen, setGroupModalOpen] = useState(false)
   const [pendingUpload, setPendingUpload] = useState<{
     filePath: string
@@ -794,21 +794,22 @@ export default function ChatPage() {
         const res = await analysisApi.uploadFasta(file)
         const data = (res.data as any).data ?? res.data
         setUploadedFile({ path: data.file_path, name: data.filename ?? file.name, type: 'fasta' })
-        message.success(`文件 ${file.name} 上传成功`)
+        message.success(`文件 ${file.name} 已附加，请输入分析指令`)
       } catch (err: any) {
         message.error('文件上传失败: ' + (err.message || '未知错误'))
       }
     } else if (matrixExts.includes(ext) || ext === '.txt') {
-      // .csv/.tsv/.txt/.xls/.xlsx → 表达矩阵上传流程（差异分析）
-      updateCurrentSession(msgs => [...msgs, {
-        id: `${Date.now()}-upload-user`,
-        role: 'user' as const,
-        content: `上传表达矩阵文件：${file.name}`,
-        timestamp: new Date().toString(),
-      }])
-      await handleUploadAndAnalyze(file)
+      // 上传文件，附加到输入框，等用户输入指令后再处理
+      try {
+        const res = await analysisApi.uploadMatrix(file)
+        const data = (res.data as any).data ?? res.data
+        setUploadedFile({ path: data.file_path, name: data.filename ?? file.name, type: 'matrix' })
+        message.success(`文件 ${file.name} 已附加，请输入分析指令`)
+      } catch (err: any) {
+        message.error('文件上传失败: ' + (err.response?.data?.detail || err.message || '未知错误'))
+      }
     } else {
-      message.error('请上传 FASTA 格式文件（.fa, .fasta）或表达矩阵/基因列表文件（.csv, .tsv, .txt）')
+      message.error('请上传 FASTA 格式文件（.fa, .fasta）或数据文件（.csv, .tsv, .txt）')
     }
   }
 
