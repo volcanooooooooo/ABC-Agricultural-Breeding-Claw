@@ -1030,48 +1030,6 @@ export default function ChatPage() {
       )
     }
 
-    // /datasets 数据集列表
-    if (msg.content === '__datasets_list__') {
-      return (
-        <div style={{ minWidth: 480, maxWidth: 620 }}>
-          <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            📂 可用数据集（共 {datasets.length} 个）
-          </div>
-          {datasets.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>暂无数据集，请先上传数据集。</div>
-          ) : (
-            datasets.map((ds, idx) => (
-              <div key={ds.id} style={{
-                background: 'var(--color-bg-input)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 12,
-                padding: '12px 16px',
-                marginBottom: idx < datasets.length - 1 ? 8 : 0,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-text-primary)' }}>{ds.name}</span>
-                  <Tag style={{ fontSize: 11, fontFamily: 'monospace' }}>{ds.id}</Tag>
-                </div>
-                {ds.description && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{ds.description}</div>
-                )}
-                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {ds.gene_count != null && <span>基因数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.gene_count.toLocaleString()}</b></span>}
-                  {ds.sample_count != null && <span>样本数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.sample_count}</b></span>}
-                  {ds.groups && (
-                    <span>分组：<b style={{ color: 'var(--color-text-secondary)' }}>{Object.keys(ds.groups).join(' / ')}</b></span>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
-            💡 直接描述分析需求，系统会自动匹配相关数据集
-          </div>
-        </div>
-      )
-    }
-
     // 分析方式选择卡片
     if (msg.type === 'analysis-method-select') {
       return (
@@ -1291,50 +1249,6 @@ export default function ChatPage() {
     // 富集分析结果
     if (msg.type === 'enrichment-result' && msg.enrichmentResult) {
       return <EnrichmentResultCard result={msg.enrichmentResult} />
-    }
-
-    // 富集分析提示卡片
-    if (msg.type === 'enrichment-prompt' && msg.analysisResult) {
-      const totalSig = msg.analysisResult.tool_result.total_significant
-        ?? msg.analysisResult.tool_result.significant_genes.length
-      return (
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 16,
-          padding: '16px 20px',
-          minWidth: 360,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 18 }}>🔬</span>
-            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
-              差异分析完成
-            </span>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
-            共发现 <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{totalSig}</span> 个显著差异基因。
-            <br />是否对全部基因进行 KEGG/GO 富集分析？
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button
-              type="primary"
-              size="small"
-              style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
-              onClick={() => handleEnrichmentFromResult(msg.analysisResult!)}
-            >
-              立即富集
-            </Button>
-            <Button
-              type="text"
-              size="small"
-              style={{ color: 'var(--color-text-muted)' }}
-              onClick={handleSkipEnrichment}
-            >
-              跳过
-            </Button>
-          </div>
-        </div>
-      )
     }
 
     // 富集分析提示卡片
