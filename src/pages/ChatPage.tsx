@@ -787,7 +787,6 @@ export default function ChatPage() {
 
     const fastaExts = ['.fa', '.fasta', '.fna', '.faa', '.fas']
     const matrixExts = ['.csv', '.tsv', '.xls', '.xlsx']
-    const geneListExts = ['.txt', '.csv', '.tsv']
     const ext = '.' + (file.name.split('.').pop()?.toLowerCase() ?? '')
 
     if (fastaExts.includes(ext)) {
@@ -799,51 +798,8 @@ export default function ChatPage() {
       } catch (err: any) {
         message.error('文件上传失败: ' + (err.message || '未知错误'))
       }
-    } else if (geneListExts.includes(ext)) {
-      // 先尝试作为基因列表解析
-      try {
-        const geneRes = await analysisApi.uploadGeneList(file)
-        const geneData = (geneRes.data as any).data ?? geneRes.data
-
-        // 成功 → 显示富集分析确认卡片
-        updateCurrentSession(msgs => [...msgs,
-          {
-            id: `${Date.now()}-upload-user`,
-            role: 'user' as const,
-            content: `上传基因列表文件：${file.name}`,
-            timestamp: new Date().toString(),
-          },
-          {
-            id: `${Date.now()}-enrichment-file-confirm`,
-            role: 'assistant' as const,
-            content: '',
-            timestamp: new Date().toString(),
-            type: 'enrichment-file-confirm' as const,
-            enrichmentFileInfo: {
-              filePath: geneData.file_path,
-              filename: geneData.filename,
-              geneCount: geneData.gene_count,
-              genePreview: geneData.gene_preview,
-              fileType: geneData.file_type,
-            },
-          },
-        ])
-      } catch (err: any) {
-        // 失败（如表达矩阵）→ 回退到差异分析流程
-        if (err.response?.status === 400) {
-          updateCurrentSession(msgs => [...msgs, {
-            id: `${Date.now()}-upload-user`,
-            role: 'user' as const,
-            content: `上传表达矩阵文件：${file.name}`,
-            timestamp: new Date().toString(),
-          }])
-          await handleUploadAndAnalyze(file)
-        } else {
-          message.error('文件上传失败: ' + (err.response?.data?.detail || err.message || '未知错误'))
-        }
-      }
-    } else if (matrixExts.includes(ext)) {
-      // .xls/.xlsx 直接走差异分析
+    } else if (matrixExts.includes(ext) || ext === '.txt') {
+      // .csv/.tsv/.txt/.xls/.xlsx → 表达矩阵上传流程（差异分析）
       updateCurrentSession(msgs => [...msgs, {
         id: `${Date.now()}-upload-user`,
         role: 'user' as const,
