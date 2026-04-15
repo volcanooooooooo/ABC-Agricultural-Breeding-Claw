@@ -25,6 +25,17 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 2. 调用 differential_expression_analysis 工具
 3. 用中文解读分析结果：显著差异基因数量、上调/下调情况、关键基因
 
+### 上传文件分析
+当用户消息中包含上传文件路径（格式如 `[上传文件: xxx, 路径: /path/to/file]`）时：
+- 提取文件路径，作为 `dataset_path` 参数传给 differential_expression_analysis 工具
+- 根据用户消息推断对照组和处理组名称（从列名中匹配）
+- 如果无法确定分组，提示用户指定对照组和处理组的关键词
+
+### 直接输入数据分析
+当用户在消息中直接提供了基因表达数据（如表格格式数据）时：
+- 直接使用默认数据集进行分析
+- 或根据用户提供的数据格式进行处理
+
 数据集信息：
 - 默认数据集：GSE242459（水稻基因表达数据）
 - 对照组（WT）：DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
@@ -157,11 +168,24 @@ async def chat(request: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
     try:
-        content = await asyncio.to_thread(_agent_loop, messages)
+        # 添加 180 秒超时，防止请求无限挂起
+        content = await asyncio.wait_for(
+            asyncio.to_thread(_agent_loop, messages),
+            timeout=180.0
+        )
         return ChatResponse(content=content)
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="分析请求超时，请尝试简化问题或稍后重试"
+        )
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        # 返回友好的错误信息，不暴露原始异常
+        error_msg = "AI 服务暂时不可用，请稍后重试"
+        if "API" in str(e) or "api" in str(e):
+            error_msg = "AI 服务连接失败，请检查网络或稍后重试"
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @router.post("/breeding")
@@ -171,16 +195,19 @@ async def breeding_chat(request: ChatRequest):
 你擅长回答关于作物育种、遗传学、分子标记辅助选择、杂交育种等方面的问题。
 请用专业但易懂的语言回答问题。"""
 
+    # 本体查询已禁用
+    # context = None
+    # if request.messages:
+    #     last_message = request.messages[-1].content
+    #     ontology_results = ontology_service.search_nodes(last_message)
+    #     if ontology_results:
+    #         context = "\n本体知识库中的相关信息：\n"
+    #         context += "\n".join([
+    #             f"- {n.name} ({n.type.value}): {n.properties.get('description', '')}"
+    #             for n in ontology_results[:5]
+    #         ])
+
     context = None
-    if request.messages:
-        last_message = request.messages[-1].content
-        ontology_results = ontology_service.search_nodes(last_message)
-        if ontology_results:
-            context = "\n本体知识库中的相关信息：\n"
-            context += "\n".join([
-                f"- {n.name} ({n.type.value}): {n.properties.get('description', '')}"
-                for n in ontology_results[:5]
-            ])
 
     if context:
         result = await llm_service.chat_with_context(
