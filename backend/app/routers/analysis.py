@@ -243,6 +243,86 @@ async def run_enrichment(request: EnrichmentRequest):
     return {"status": "success", "data": result}
 
 
+@router.post("/upload-genelist")
+async def upload_genelist(file: UploadFile = File(...)):
+    """上传基因列表文件，解析并返回基因ID预览"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    allowed_exts = {".txt", ".csv", ".tsv"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型 '{ext}'，请上传 .txt/.csv/.tsv 格式文件")
+
+    uploads_dir = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    dest = uploads_dir / safe_name
+
+    content = await file.read()
+    dest.write_bytes(content)
+
+    # 解析基因列表
+    text = content.decode("utf-8", errors="ignore").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+
+    genes: list[str] = []
+    file_type = "gene_list"
+
+    # 尝试结构化解析（差异分析结果 CSV）
+    lines = text.split("\n")
+    header = lines[0].lower()
+    if "gene_id" in header and ("pvalue" in header or "log2fc" in header):
+        file_type = "diff_result"
+        import csv as csv_module
+        import io
+        sep = "\t" if "\t" in lines[0] else ","
+        reader = csv_module.DictReader(io.StringIO(text), delimiter=sep)
+        for row in reader:
+            gene_id = row.get("gene_id", "").strip()
+            if not gene_id:
+                continue
+            try:
+                pval = float(row.get("pvalue", row.get("p_value", "1")))
+                l2fc = abs(float(row.get("log2fc", row.get("log2_fc", "0"))))
+            except (ValueError, TypeError):
+                continue
+            if pval <= 0.05 and l2fc >= 1.0:
+                genes.append(gene_id)
+    elif "\t" in lines[0] and len(lines[0].split("\t")) > 3:
+        # 多列 TSV（表达矩阵），不是基因列表
+        raise HTTPException(status_code=400, detail="文件看起来是表达矩阵而非基因列表，请拖拽到差异分析流程")
+    else:
+        # 纯文本格式：每行一个基因ID 或 逗号分隔
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # 逗号分隔
+            if "," in line:
+                genes.extend(g.strip() for g in line.split(",") if g.strip())
+            else:
+                # 单行一个基因ID（忽略纯数字行）
+                if not line.replace(".", "").replace("-", "").isdigit():
+                    genes.append(line)
+
+    if not genes:
+        raise HTTPException(status_code=400, detail="未能从文件中识别到基因ID")
+
+    return {
+        "status": "success",
+        "data": {
+            "file_path": str(dest),
+            "filename": file.filename,
+            "gene_count": len(genes),
+            "gene_preview": genes[:10],
+            "file_type": file_type,
+        }
+    }
+
+
 @router.get("/kegg-image/{pathway_id}")
 async def get_kegg_pathway_image(pathway_id: str):
     """代理 KEGG 通路图 PNG 图片"""
