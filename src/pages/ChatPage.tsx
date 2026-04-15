@@ -184,11 +184,18 @@ export default function ChatPage() {
     return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
   }
 
-  // 识别差异表达分析意图（排除富集分析）
+  // 识别差异表达分析意图（仅斜杠命令）
   const detectAnalysisIntent = (text: string): boolean => {
-    if (detectEnrichmentIntent(text)) return false
-    const keywords = ['差异表达', '差异基因', '差异分析', '/analyze', '/diff', '/analyse', 'deseq', 't检验', '双轨']
-    return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
+    const commands = ['/analyze', '/diff', '/analyse']
+    return commands.some(cmd => text.toLowerCase().startsWith(cmd))
+  }
+
+  // 解析 AI 回复中的 ANALYSIS_READY 标记
+  const parseAnalysisReady = (content: string): { hasIntent: boolean; cleanContent: string } => {
+    const marker = '<!-- ANALYSIS_READY -->'
+    const hasIntent = content.includes(marker)
+    const cleanContent = content.replace(marker, '').trim()
+    return { hasIntent, cleanContent }
   }
 
   // 知识本体查询意图识别
@@ -1373,37 +1380,67 @@ export default function ChatPage() {
     }
 
     // 普通文本消息
+    const { hasIntent, cleanContent } = msg.role === 'assistant'
+      ? parseAnalysisReady(msg.content)
+      : { hasIntent: false, cleanContent: msg.content }
+
     return (
-      <div style={{
-        background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)',
-        color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)',
-        padding: '12px 16px',
-        borderRadius: 16,
-        lineHeight: 1.6
-      }}>
-        {msg.role === 'assistant' ? (
-          <div className="markdown-body">
-            <ReactMarkdown>{msg.content}</ReactMarkdown>
-          </div>
-        ) : (
-          <>
-            {msg.content}
-            {msg.attachedFile && (
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                marginLeft: msg.content ? 8 : 0,
-                background: 'rgba(255,255,255,0.2)',
-                padding: '4px 10px',
+      <div>
+        <div style={{
+          background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)',
+          color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)',
+          padding: '12px 16px',
+          borderRadius: 16,
+          lineHeight: 1.6
+        }}>
+          {msg.role === 'assistant' ? (
+            <div className="markdown-body">
+              <ReactMarkdown>{cleanContent}</ReactMarkdown>
+            </div>
+          ) : (
+            <>
+              {msg.content}
+              {msg.attachedFile && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginLeft: msg.content ? 8 : 0,
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                }}>
+                  <FileOutlined style={{ fontSize: 14 }} />
+                  <span>{msg.attachedFile.name}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {hasIntent && (
+          <div style={{ marginTop: 12 }}>
+            <Button
+              type="primary"
+              icon={<ArrowRightOutlined />}
+              onClick={() => {
+                updateCurrentSession(msgs => [...msgs, {
+                  id: `${Date.now()}-analysis-method`,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: new Date().toString(),
+                  type: 'analysis-method-select',
+                }])
+              }}
+              style={{
                 borderRadius: 8,
-                fontSize: 13,
-              }}>
-                <FileOutlined style={{ fontSize: 14 }} />
-                <span>{msg.attachedFile.name}</span>
-              </div>
-            )}
-          </>
+                background: 'var(--gradient-accent)',
+                border: 'none',
+              }}
+            >
+              开始差异分析
+            </Button>
+          </div>
         )}
       </div>
     )
