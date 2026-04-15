@@ -137,7 +137,7 @@ def _run_go_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[str,
             "adjusted_pvalue": rec.p_fdr_bh,
             "enrichment_score": score,
             "enrichment_type": "enriched" if rec.enrichment == "e" else "purified",
-            "genes": list(rec.study_items)[:50],
+            "genes": list(rec.study_items)[:10],
         })
     return out
 
@@ -180,7 +180,7 @@ def _run_kegg_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[st
             "gene_count": a,
             "total_genes": len(pathway_genes),
             "pvalue": pval,
-            "hit_genes": list(study & pathway_genes)[:50],
+            "hit_genes": list(study & pathway_genes)[:10],
         })
 
     if not pvalues:
