@@ -24,7 +24,7 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result' | 'analysis-method-select'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result' | 'analysis-method-select' | 'enrichment-file-confirm'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
@@ -33,6 +33,13 @@ interface ChatMessage extends Message {
   enrichmentResult?: EnrichmentResult
   blastResult?: BlastResult
   attachedFile?: { name: string; path: string }
+  enrichmentFileInfo?: {
+    filePath: string
+    filename: string
+    geneCount: number
+    genePreview: string[]
+    fileType: 'gene_list' | 'diff_result'
+  }
 }
 
 interface ChatSession {
@@ -741,6 +748,30 @@ export default function ChatPage() {
     updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
   }
 
+  // 确认富集分析（从文件）
+  const handleEnrichmentFileConfirm = async (fileInfo: { filePath: string; filename: string; geneCount: number }) => {
+    // 移除确认卡片
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-file-confirm'))
+
+    // 构造用户消息发送给 Agent
+    const userMsg: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'user',
+      content: `请对文件 ${fileInfo.filename} 中的 ${fileInfo.geneCount} 个基因进行 KEGG/GO 富集分析（文件路径：${fileInfo.filePath}）`,
+      timestamp: new Date().toString(),
+    }
+    updateCurrentSession(msgs => [...msgs, userMsg])
+    setIsAtBottom(true)
+    setLoading(true)
+    await handleNormalChat(userMsg)
+    setLoading(false)
+  }
+
+  // 取消富集分析
+  const handleEnrichmentFileCancel = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-file-confirm'))
+  }
+
   const COMMANDS = [
     { cmd: '/tools', icon: '🛠️', desc: '显示所有可用分析工具' },
     { cmd: '/datasets', icon: '📂', desc: '显示可用数据集列表' },
@@ -756,6 +787,7 @@ export default function ChatPage() {
 
     const fastaExts = ['.fa', '.fasta', '.fna', '.faa', '.fas']
     const matrixExts = ['.csv', '.tsv', '.xls', '.xlsx']
+    const geneListExts = ['.txt', '.csv', '.tsv']
     const ext = '.' + (file.name.split('.').pop()?.toLowerCase() ?? '')
 
     if (fastaExts.includes(ext)) {
@@ -767,8 +799,51 @@ export default function ChatPage() {
       } catch (err: any) {
         message.error('文件上传失败: ' + (err.message || '未知错误'))
       }
-    } else if (matrixExts.includes(ext) || ext === '.txt') {
-      // 添加用户消息
+    } else if (geneListExts.includes(ext)) {
+      // 先尝试作为基因列表解析
+      try {
+        const geneRes = await analysisApi.uploadGeneList(file)
+        const geneData = (geneRes.data as any).data ?? geneRes.data
+
+        // 成功 → 显示富集分析确认卡片
+        updateCurrentSession(msgs => [...msgs,
+          {
+            id: `${Date.now()}-upload-user`,
+            role: 'user' as const,
+            content: `上传基因列表文件：${file.name}`,
+            timestamp: new Date().toString(),
+          },
+          {
+            id: `${Date.now()}-enrichment-file-confirm`,
+            role: 'assistant' as const,
+            content: '',
+            timestamp: new Date().toString(),
+            type: 'enrichment-file-confirm' as const,
+            enrichmentFileInfo: {
+              filePath: geneData.file_path,
+              filename: geneData.filename,
+              geneCount: geneData.gene_count,
+              genePreview: geneData.gene_preview,
+              fileType: geneData.file_type,
+            },
+          },
+        ])
+      } catch (err: any) {
+        // 失败（如表达矩阵）→ 回退到差异分析流程
+        if (err.response?.status === 400) {
+          updateCurrentSession(msgs => [...msgs, {
+            id: `${Date.now()}-upload-user`,
+            role: 'user' as const,
+            content: `上传表达矩阵文件：${file.name}`,
+            timestamp: new Date().toString(),
+          }])
+          await handleUploadAndAnalyze(file)
+        } else {
+          message.error('文件上传失败: ' + (err.response?.data?.detail || err.message || '未知错误'))
+        }
+      }
+    } else if (matrixExts.includes(ext)) {
+      // .xls/.xlsx 直接走差异分析
       updateCurrentSession(msgs => [...msgs, {
         id: `${Date.now()}-upload-user`,
         role: 'user' as const,
@@ -777,7 +852,7 @@ export default function ChatPage() {
       }])
       await handleUploadAndAnalyze(file)
     } else {
-      message.error('请上传 FASTA 格式文件（.fa, .fasta）或表达矩阵文件（.csv, .tsv）')
+      message.error('请上传 FASTA 格式文件（.fa, .fasta）或表达矩阵/基因列表文件（.csv, .tsv, .txt）')
     }
   }
 
@@ -1226,6 +1301,57 @@ export default function ChatPage() {
     // 富集分析结果
     if (msg.type === 'enrichment-result' && msg.enrichmentResult) {
       return <EnrichmentResultCard result={msg.enrichmentResult} />
+    }
+
+    // 富集分析文件确认卡片
+    if (msg.type === 'enrichment-file-confirm' && msg.enrichmentFileInfo) {
+      const info = msg.enrichmentFileInfo
+      return (
+        <Card
+          size="small"
+          style={{
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12,
+            maxWidth: 500,
+          }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>
+              检测到 {info.geneCount} 个基因ID
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              文件：{info.filename} ({info.fileType === 'diff_result' ? '差异分析结果' : '基因列表'})
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              预览：{info.genePreview.join(', ')}
+              {info.geneCount > info.genePreview.length && ` ...等${info.geneCount}个`}
+            </div>
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
+                onClick={() => handleEnrichmentFileConfirm({
+                  filePath: info.filePath,
+                  filename: info.filename,
+                  geneCount: info.geneCount,
+                })}
+              >
+                开始富集分析
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                style={{ color: 'var(--color-text-muted)' }}
+                onClick={handleEnrichmentFileCancel}
+              >
+                取消
+              </Button>
+            </Space>
+          </Space>
+        </Card>
+      )
     }
 
     // 富集分析提示卡片
