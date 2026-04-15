@@ -124,17 +124,26 @@ export default function AnalysisPage() {
   };
 
   // Delete dataset
-  const handleDeleteDataset = async (id: string) => {
-    try {
-      await datasetApi.delete(id);
-      message.success('删除成功');
-      loadDatasets();
-      if (selectedDatasetId === id) {
-        setSelectedDatasetId(undefined);
-      }
-    } catch (error) {
-      message.error('删除失败');
-    }
+  const handleDeleteDataset = (id: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '删除后数据集将无法恢复，确定要删除吗？',
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await datasetApi.delete(id);
+          message.success('删除成功');
+          loadDatasets();
+          if (selectedDatasetId === id) {
+            setSelectedDatasetId(undefined);
+          }
+        } catch (error) {
+          message.error('删除失败');
+        }
+      },
+    });
   };
 
   // Dataset columns for table

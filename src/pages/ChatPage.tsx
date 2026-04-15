@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Fragment } from 'react'
-import { Input, Button, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space } from 'antd'
+import { Input, Button, Avatar, Spin, Card, Row, Col, Tag, Table, Progress, message, Layout, Dropdown, Space, Modal } from 'antd'
 import { SendOutlined, UserOutlined, RobotOutlined, DeleteOutlined, PlusOutlined, MessageOutlined, FileOutlined, ArrowRightOutlined, LogoutOutlined, SettingOutlined, UserSwitchOutlined, UploadOutlined, DatabaseOutlined, EditOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import { chatApi, analysisApi, datasetApi, ontologyApi, Message, AnalysisResult, Dataset, GeneInfo } from '../api/client'
@@ -268,19 +268,19 @@ export default function ChatPage() {
       return
     }
 
-    // 检查是否是知识本体查询意图
-    if (detectOntologyIntent(input)) {
-      const userMsg: ChatMessage = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        role: 'user',
-        content: input.trim(),
-        timestamp: new Date().toString(),
-      }
-      updateCurrentSession(msgs => [...msgs, userMsg])
-      setInput('')
-      setOntologyModalOpen(true)
-      return
-    }
+    // 检查是否是知识本体查询意图（已禁用）
+    // if (detectOntologyIntent(input)) {
+    //   const userMsg: ChatMessage = {
+    //     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    //     role: 'user',
+    //     content: input.trim(),
+    //     timestamp: new Date().toString(),
+    //   }
+    //   updateCurrentSession(msgs => [...msgs, userMsg])
+    //   setInput('')
+    //   setOntologyModalOpen(true)
+    //   return
+    // }
 
     // 检查是否是差异分析意图
     if (detectAnalysisIntent(input)) {
@@ -308,31 +308,31 @@ export default function ChatPage() {
       // 有 FASTA 文件但说差异分析 → 走对话
     }
 
-    // 检查基因查询意图
-    const detectedGeneId = detectGeneQueryIntent(input)
-    if (detectedGeneId && currentSession) {
-      // 查找当前会话中的分析结果
-      const resultMsg = currentSession.messages.find(
-        msg => msg.type === 'progress' && msg.analysisResult
-      )
-
-      // 无论是否有 analysisResult，都打开 GeneDetailModal
-      // 如果没有，会自动从后端获取历史分析
-      const userMsg: ChatMessage = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        role: 'user',
-        content: input.trim(),
-        timestamp: new Date().toString(),
-        type: 'gene-query',
-        geneId: detectedGeneId
-      }
-      updateCurrentSession(msgs => [...msgs, userMsg])
-      setInput('')
-      setSelectedGene(detectedGeneId)
-      setSelectedResult(resultMsg?.analysisResult || null)  // 可能为 null，Modal 会自动从后端获取
-      setGeneModalOpen(true)
-      return
-    }
+    // 检查基因查询意图（已禁用 - 本体相关功能）
+    // const detectedGeneId = detectGeneQueryIntent(input)
+    // if (detectedGeneId && currentSession) {
+    //   // 查找当前会话中的分析结果
+    //   const resultMsg = currentSession.messages.find(
+    //     msg => msg.type === 'progress' && msg.analysisResult
+    //   )
+    //
+    //   // 无论是否有 analysisResult，都打开 GeneDetailModal
+    //   // 如果没有，会自动从后端获取历史分析
+    //   const userMsg: ChatMessage = {
+    //     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    //     role: 'user',
+    //     content: input.trim(),
+    //     timestamp: new Date().toString(),
+    //     type: 'gene-query',
+    //     geneId: detectedGeneId
+    //   }
+    //   updateCurrentSession(msgs => [...msgs, userMsg])
+    //   setInput('')
+    //   setSelectedGene(detectedGeneId)
+    //   setSelectedResult(resultMsg?.analysisResult || null)  // 可能为 null，Modal 会自动从后端获取
+    //   setGeneModalOpen(true)
+    //   return
+    // }
 
     let finalContent = input.trim()
     let sendContent = finalContent
@@ -1493,12 +1493,21 @@ export default function ChatPage() {
   // 删除会话
   const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    const newSessions = sessions.filter(s => s.id !== sessionId)
-    setSessions(newSessions)
-    if (sessionId === currentSessionId) {
-      if (newSessions.length > 0) setCurrentSessionId(newSessions[0].id)
-      else createNewSession()
-    }
+    Modal.confirm({
+      title: '确认删除',
+      content: '删除后无法恢复，确定要删除这个会话吗？',
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        const newSessions = sessions.filter(s => s.id !== sessionId)
+        setSessions(newSessions)
+        if (sessionId === currentSessionId) {
+          if (newSessions.length > 0) setCurrentSessionId(newSessions[0].id)
+          else createNewSession()
+        }
+      },
+    })
   }
 
   // 渲染分析结果
@@ -1595,35 +1604,36 @@ export default function ChatPage() {
           result={selectedResult || undefined}
           open={geneModalOpen}
           onClose={() => setGeneModalOpen(false)}
-          onViewInOntology={(geneId) => {
-            setGeneModalOpen(false)
-            setSelectedGene(geneId)
-            setOntologyNodeId(geneId)
-            setOntologyModalOpen(true)
-          }}
+          // 本体功能已禁用
+          // onViewInOntology={(geneId) => {
+          //   setGeneModalOpen(false)
+          //   setSelectedGene(geneId)
+          //   setOntologyNodeId(geneId)
+          //   setOntologyModalOpen(true)
+          // }}
         />
 
-        {/* 基因信息面板 */}
-        <GeneInfoPanel
+        {/* 基因信息面板（本体功能已禁用） */}
+        {/* <GeneInfoPanel
           geneId={selectedGene}
           open={geneInfoPanelOpen}
           onClose={() => setGeneInfoPanelOpen(false)}
-          onViewDetails={(nodeId) => {
-            setGeneInfoPanelOpen(false)
-            setOntologyNodeId(nodeId)
-            setOntologyModalOpen(true)
-          }}
-        />
+          // onViewDetails={(nodeId) => {
+          //   setGeneInfoPanelOpen(false)
+          //   setOntologyNodeId(nodeId)
+          //   setOntologyModalOpen(true)
+          // }}
+        /> */}
 
-        {/* 知识本体查询弹窗 */}
-        <OntologyModal
+        {/* 知识本体查询弹窗（已禁用） */}
+        {/* <OntologyModal
           open={ontologyModalOpen}
           onClose={() => {
             setOntologyModalOpen(false)
             setOntologyNodeId(undefined)
           }}
           nodeId={ontologyNodeId}
-        />
+        /> */}
 
         {/* 分组选择弹窗（上传文件自动推断失败时） */}
         <GroupSelectModal
@@ -1640,7 +1650,7 @@ export default function ChatPage() {
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <img src={iconImg} alt="ABC Logo" width={44} height={44} style={{ borderRadius: '50%' }} />
-            <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC 系统</span>
+            <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC: Agricultural Breeding Claw</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {datasets.length > 0 && <Tag color="blue" icon={<FileOutlined />}>{datasets.length} 个数据集</Tag>}
