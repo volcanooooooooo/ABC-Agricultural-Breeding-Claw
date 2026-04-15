@@ -140,7 +140,7 @@ export const chatApi = {
     const payload = {
       messages: [{ role: 'user', content: data.message }]
     }
-    return api.post<ApiResponse<any>>('/chat/', payload)
+    return api.post<ApiResponse<any>>('/chat/', payload, { timeout: 120000 })
   },
   getHistory: () =>
     api.get<ApiResponse<Message[]>>('/chat/history'),
