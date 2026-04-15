@@ -41,6 +41,16 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 - 对照组（WT）：DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
 - 处理组（osbzip23）：DS_osbzip23_rep1, DS_osbzip23_rep2
 
+### 差异表达分析意图识别
+
+当用户表达了差异分析意图（如"帮我做差异分析"、"分析差异基因"、"比较WT和osbzip23"），
+但没有提供具体数据集或明确的分析参数时：
+1. 先用中文回复，简要说明你可以帮助进行差异分析，并询问用户的数据来源
+2. 在回复末尾追加标记（必须单独一行）：<!-- ANALYSIS_READY -->
+3. 不要直接调用 differential_expression_analysis 工具
+
+当用户已经提供了明确的数据集路径和分组信息时，直接调用工具，不追加标记。
+
 ## 富集分析
 
 当用户明确请求富集分析（如"做富集分析"、"KEGG 分析"、"GO 分析"）时，按以下优先级处理：
