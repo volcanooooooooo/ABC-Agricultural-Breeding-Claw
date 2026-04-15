@@ -207,23 +207,24 @@ export default function ChatPage() {
 
   // 基因查询意图识别
   const detectGeneQueryIntent = (text: string): string | null => {
-    // 基因查询模式：查看/展示 + 基因名
+    // 排除多行文本（粘贴的表达数据）和过长输入
+    if (text.includes('\t') || text.includes('\n') || text.length > 100) return null
+
+    // 基因查询模式：需要明确的查询上下文
     const patterns = [
-      /基因(\w+)/i,           // "展示基因Gene7" / "查看基因Gene7详情"
-      /(gene\d+)/i,          // "查看 gene7" / "gene7详情"
-      /(?:Gene|gene)(\d+)\s*详情/i,  // "Gene7详情" / "gene7详情"
+      /(?:查看|展示|查询|搜索|显示).*基因\s*(\w+)/i,  // "查看基因Gene7"
+      /基因\s*(\w+)\s*(?:详情|信息|表达)/i,            // "基因Gene7详情"
+      /(?:查看|展示|查询|搜索|显示)\s*(gene\d+)/i,     // "查看 Gene7"
+      /(gene\d+)\s*(?:详情|信息|怎么样)/i,             // "Gene7详情"
     ]
 
     for (const pattern of patterns) {
       const match = text.match(pattern)
       if (match) {
-        // 返回匹配的基因ID
         const geneId = match[1] || match[0]
-        // 标准化为 GeneX 格式
         if (/^gene\d+$/i.test(geneId)) {
           return 'Gene' + geneId.slice(4).toLowerCase()
         }
-        // 如果是纯数字（如 "7详情" 匹配到的），加上 Gene 前缀
         if (/^\d+$/.test(geneId)) {
           return 'Gene' + geneId
         }
