@@ -224,6 +224,20 @@ export const analysisApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // 基因列表文件上传（用于富集分析）
+  uploadGeneList: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<ApiResponse<{
+      file_path: string
+      filename: string
+      gene_count: number
+      gene_preview: string[]
+      file_type: 'gene_list' | 'diff_result'
+    }>>('/analysis/upload-genelist', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   // 注册临时数据集（上传文件 → 双轨分析）
   registerTemp: (filePath: string, filename: string, groups: Record<string, string[]>) =>
     api.post<ApiResponse<Dataset>>('/analysis/register-temp', {
