@@ -106,10 +106,31 @@ export default function ChatPage() {
     loadDatasets()
   }, [])
 
-  // 保存会话到 localStorage
+  // 保存会话到 localStorage（裁剪大体积数据避免超出配额）
   useEffect(() => {
     if (sessions.length > 0) {
-      localStorage.setItem('chat_sessions', JSON.stringify(sessions))
+      try {
+        const trimmed = sessions.map(s => ({
+          ...s,
+          messages: s.messages.map(msg => {
+            // 移除大体积的分析结果数据，只保留消息文本和类型
+            const { analysisResult, enrichmentResult, blastResult, ...rest } = msg as any
+            return rest
+          }),
+        }))
+        localStorage.setItem('chat_sessions', JSON.stringify(trimmed))
+      } catch (e) {
+        // QuotaExceededError: 清理旧会话后重试
+        if (sessions.length > 1) {
+          try {
+            const recent = sessions.slice(-3) // 只保留最近 3 个会话
+            localStorage.setItem('chat_sessions', JSON.stringify(recent))
+          } catch {
+            // 仍然失败，清空存储
+            localStorage.removeItem('chat_sessions')
+          }
+        }
+      }
     }
   }, [sessions])
 
