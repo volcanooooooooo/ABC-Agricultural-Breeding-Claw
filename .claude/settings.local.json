@@ -39,7 +39,13 @@
       "Bash(PYTHONPATH=backend python:*)",
       "Bash(python *)",
       "Bash(PYTHONPATH=backend timeout 10 python -m uvicorn app.main:app --host 0.0.0.0 --port 8099)",
-      "Bash(wc *)"
+      "Bash(wc *)",
+      "Bash(grep -E \"\\(uploads/|\\\\.db$|config\\\\.json|\\\\.obo|annotations/.*\\\\.tsv|blastdb/|\\\\.log$|\\\\.pid$\\)\")",
+      "Bash(git rm *)",
+      "Bash(git switch *)",
+      "Bash(git push *)",
+      "Bash(git config *)",
+      "Bash(env)"
     ]
   },
   "enabledPlugins": {
