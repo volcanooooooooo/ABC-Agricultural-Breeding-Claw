@@ -25,10 +25,35 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 2. 调用 differential_expression_analysis 工具
 3. 用中文解读分析结果：显著差异基因数量、上调/下调情况、关键基因
 
+### 上传文件分析
+当用户消息中包含上传文件路径（格式如 `[上传文件: xxx, 路径: /path/to/file]`）时：
+- 提取文件路径，作为 `dataset_path` 参数传给 differential_expression_analysis 工具
+- 根据用户消息推断对照组和处理组名称（从列名中匹配）
+- 如果无法确定分组，提示用户指定对照组和处理组的关键词
+
+### 直接输入数据分析
+当用户在消息中直接提供了基因表达数据（如 TSV/CSV 格式的表格数据）时：
+- 将用户提供的原始表格数据作为 `inline_data` 参数传给 differential_expression_analysis 工具
+- 从用户消息中推断 control_group 和 treatment_group 名称
+- 不要编造文件路径，不要使用 dataset_path 参数
+- 如果无法确定分组，提示用户指定对照组和处理组的关键词
+
 数据集信息：
 - 默认数据集：GSE242459（水稻基因表达数据）
 - 对照组（WT）：DS_WT_rep1, DS_WT_rep2, N_WT_rep1, N_WT_rep2, RE_WT_rep1, RE_WT_rep2
 - 处理组（osbzip23）：DS_osbzip23_rep1, DS_osbzip23_rep2
+
+### 差异表达分析意图识别
+
+当用户表达了**差异表达分析**意图（如"帮我做差异分析"、"分析差异基因"、"比较WT和osbzip23"），
+但没有提供具体数据集或明确的分析参数时：
+1. 先用中文回复，简要说明你可以帮助进行差异分析，并询问用户的数据来源
+2. 在回复末尾追加标记（必须单独一行）：<!-- ANALYSIS_READY -->
+3. 不要直接调用 differential_expression_analysis 工具
+
+当用户已经提供了明确的数据集路径和分组信息时，直接调用工具，不追加标记。
+
+**重要**：只有差异表达分析请求才追加 ANALYSIS_READY 标记，富集分析、BLAST 等其他分析请求不要追加此标记。
 
 ## 富集分析
 
@@ -39,7 +64,7 @@ SYSTEM_PROMPT = """你是 ABC（农业育种智能助手）的分析 Agent。
 3. **以上两者都没有**：询问用户提供基因 ID 列表，**不要**自动运行差异表达分析。
 
 富集分析结果处理：
-- 用中文解读 top 5 KEGG 通路和 top 5 GO term
+- 用一句话总结最显著的发现（如"共发现 X 个显著 KEGG 通路和 Y 个 GO term，最显著通路为 XXX"）
 - 回复末尾追加（JSON 必须单行）：<!-- ENRICHMENT_DATA: {完整JSON} -->
 
 ## 重要原则
@@ -109,6 +134,7 @@ def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
             return assistant_msg.content or ""
 
         # 执行所有工具调用
+        _pending_data: Dict[str, str] = {}  # marker_comment -> json_str
         for tool_call in assistant_msg.tool_calls:
             name = tool_call.function.name
             try:
@@ -116,11 +142,56 @@ def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
             except json.JSONDecodeError:
                 arguments = {}
             result = _dispatch_tool(name, arguments)
+            # 对富集/BLAST 结果，后端直接持有 JSON，不让 LLM 重新输出
+            if name == "enrichment_analysis":
+                try:
+                    parsed = json.loads(result)
+                    if "error" not in parsed:
+                        _pending_data["ENRICHMENT"] = result
+                        result = json.dumps({
+                            "summary": parsed.get("summary", {}),
+                            "note": "完整数据已由系统附加，请勿在回复中重复输出 JSON",
+                        }, ensure_ascii=False)
+                except Exception:
+                    pass
+            elif name == "blast_search":
+                try:
+                    parsed = json.loads(result)
+                    if "error" not in parsed:
+                        _pending_data["BLAST"] = result
+                        result = json.dumps({
+                            "summary": parsed.get("summary", parsed.get("hits", [])[:3]),
+                            "note": "完整数据已由系统附加，请勿在回复中重复输出 JSON",
+                        }, ensure_ascii=False)
+                except Exception:
+                    pass
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "content": result,
             })
+
+        # 如果有需要后端附加的数据，继续循环拿到 LLM 摘要后再拼接
+        if _pending_data:
+            # 再跑一轮拿摘要文本
+            response2 = client.chat.completions.create(
+                model=settings.qwen_model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="none",
+                max_tokens=512,
+                temperature=settings.llm_temperature,
+            )
+            summary_text = (response2.choices[0].message.content or "").strip()
+            # 去掉 LLM 可能自己输出的残缺标记
+            for marker in ("<!-- ENRICHMENT_DATA:", "<!-- BLAST_DATA:", "-->"):
+                summary_text = summary_text.split(marker)[0].strip()
+            # 拼接后端持有的完整 JSON
+            if "ENRICHMENT" in _pending_data:
+                summary_text += f"\n<!-- ENRICHMENT_DATA: {_pending_data['ENRICHMENT']} -->"
+            if "BLAST" in _pending_data:
+                summary_text += f"\n<!-- BLAST_DATA: {_pending_data['BLAST']} -->"
+            return summary_text
 
     # 超过最大轮数
     for msg in reversed(messages):
@@ -157,11 +228,25 @@ async def chat(request: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
     try:
-        content = await asyncio.to_thread(_agent_loop, messages)
+        # 添加 180 秒超时，防止请求无限挂起
+        content = await asyncio.wait_for(
+            asyncio.to_thread(_agent_loop, messages),
+            timeout=180.0
+        )
+        print(f"[CHAT RESPONSE] {content[:500]}...")
         return ChatResponse(content=content)
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="分析请求超时，请尝试简化问题或稍后重试"
+        )
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        # 返回友好的错误信息，不暴露原始异常
+        error_msg = "AI 服务暂时不可用，请稍后重试"
+        if "API" in str(e) or "api" in str(e):
+            error_msg = "AI 服务连接失败，请检查网络或稍后重试"
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @router.post("/breeding")
@@ -171,16 +256,19 @@ async def breeding_chat(request: ChatRequest):
 你擅长回答关于作物育种、遗传学、分子标记辅助选择、杂交育种等方面的问题。
 请用专业但易懂的语言回答问题。"""
 
+    # 本体查询已禁用
+    # context = None
+    # if request.messages:
+    #     last_message = request.messages[-1].content
+    #     ontology_results = ontology_service.search_nodes(last_message)
+    #     if ontology_results:
+    #         context = "\n本体知识库中的相关信息：\n"
+    #         context += "\n".join([
+    #             f"- {n.name} ({n.type.value}): {n.properties.get('description', '')}"
+    #             for n in ontology_results[:5]
+    #         ])
+
     context = None
-    if request.messages:
-        last_message = request.messages[-1].content
-        ontology_results = ontology_service.search_nodes(last_message)
-        if ontology_results:
-            context = "\n本体知识库中的相关信息：\n"
-            context += "\n".join([
-                f"- {n.name} ({n.type.value}): {n.properties.get('description', '')}"
-                for n in ontology_results[:5]
-            ])
 
     if context:
         result = await llm_service.chat_with_context(

@@ -137,7 +137,7 @@ def _run_go_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[str,
             "adjusted_pvalue": rec.p_fdr_bh,
             "enrichment_score": score,
             "enrichment_type": "enriched" if rec.enrichment == "e" else "purified",
-            "genes": list(rec.study_items)[:50],
+            "genes": list(rec.study_items)[:10],
         })
     return out
 
@@ -180,7 +180,7 @@ def _run_kegg_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[st
             "gene_count": a,
             "total_genes": len(pathway_genes),
             "pvalue": pval,
-            "hit_genes": list(study & pathway_genes)[:50],
+            "hit_genes": list(study & pathway_genes)[:10],
         })
 
     if not pvalues:
@@ -222,11 +222,97 @@ def _run_kegg_enrichment(genes: List[str], pvalue_cutoff: float) -> List[Dict[st
 
 
 # ---------------------------------------------------------------------------
+# Helper functions for alternative gene input methods
+# ---------------------------------------------------------------------------
+
+def _extract_genes_from_file(file_path: str) -> List[str]:
+    """从文件中提取基因ID列表。
+
+    支持两种格式：
+    1. 纯基因ID文件：每行一个基因ID，或逗号/制表符分隔
+    2. 差异分析结果 CSV：自动检测含 gene_id + pvalue/log2fc 列，按阈值筛选
+    """
+    import csv as csv_module
+    p = Path(file_path)
+    if not p.exists():
+        return []
+
+    content = p.read_text(encoding="utf-8").strip()
+    if not content:
+        return []
+
+    # 尝试结构化 CSV/TSV 解析
+    sep = "\t" if p.suffix in (".tsv", ".txt") and "\t" in content.split("\n")[0] else ","
+    try:
+        lines = content.split("\n")
+        header = lines[0].lower()
+        if "gene_id" in header and ("pvalue" in header or "log2fc" in header):
+            # 差异分析结果格式
+            genes = []
+            reader = csv_module.DictReader(lines, delimiter=sep)
+            for row in reader:
+                gene_id = row.get("gene_id", "").strip()
+                if not gene_id:
+                    continue
+                try:
+                    pval = float(row.get("pvalue", row.get("p_value", "1")))
+                    l2fc = abs(float(row.get("log2fc", row.get("log2_fc", "0"))))
+                except (ValueError, TypeError):
+                    continue
+                if pval <= 0.05 and l2fc >= 1.0:
+                    genes.append(gene_id)
+            if genes:
+                return genes
+    except Exception:
+        pass
+
+    # 纯文本格式：每行一个基因ID 或 逗号分隔
+    genes = []
+    for line in content.split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # 多列 TSV（表达矩阵），跳过
+        if "\t" in line and len(line.split("\t")) > 3:
+            continue
+        # 逗号分隔
+        if "," in line:
+            genes.extend(g.strip() for g in line.split(",") if g.strip() and not g.strip().replace(".", "").replace("-", "").isdigit())
+        else:
+            # 单行一个基因ID（忽略纯数字行）
+            if not line.replace(".", "").replace("-", "").isdigit():
+                genes.append(line)
+    return genes
+
+
+def _extract_genes_from_result(result_id: str) -> List[str]:
+    """从差异分析结果 JSON 文件中提取显著基因ID列表。"""
+    results_dir = Path(__file__).resolve().parent.parent.parent / "backend" / "data" / "analysis_results"
+    result_file = results_dir / f"{result_id}.json"
+    if not result_file.exists():
+        # 也尝试不带 backend 前缀的路径
+        results_dir_alt = Path(__file__).resolve().parent.parent.parent / "data" / "analysis_results"
+        result_file = results_dir_alt / f"{result_id}.json"
+        if not result_file.exists():
+            return []
+
+    try:
+        data = json.loads(result_file.read_text(encoding="utf-8"))
+        tool_result = data.get("tool_result", {})
+        sig_genes = tool_result.get("all_significant_genes") or tool_result.get("significant_genes", [])
+        return [g["gene_id"] for g in sig_genes if g.get("gene_id")]
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Main enrichment_analysis function
 # ---------------------------------------------------------------------------
 
 def enrichment_analysis(
-    gene_list: str,
+    gene_list: str = "",
+    gene_file_path: str = "",
+    analysis_result_id: str = "",
     analysis_type: str = "both",
     organism: str = "oryza sativa",
     pvalue_cutoff: float = 0.05,
@@ -234,8 +320,15 @@ def enrichment_analysis(
 ) -> str:
     """对基因列表进行 KEGG 和/或 GO 富集分析（本地 MH63 注释文件）。
 
+    三种输入方式（互斥，按优先级取第一个非空的）：
+    1. gene_list: 逗号分隔的基因 ID
+    2. gene_file_path: 基因列表文件路径
+    3. analysis_result_id: 差异分析结果 ID
+
     Args:
         gene_list: 逗号分隔的基因 ID，如 "OsMH_01G0000400,OsMH_02G0001200"
+        gene_file_path: 基因列表文件路径（.txt 每行一个基因ID，或差异分析结果 CSV）
+        analysis_result_id: 差异分析结果 ID（如 job_xxxxxxxx）
         analysis_type: "GO" | "KEGG" | "both"，默认 "both"
         organism: 物种名称，默认 "oryza sativa"
         pvalue_cutoff: p 值阈值，默认 0.05
@@ -244,12 +337,22 @@ def enrichment_analysis(
     Returns:
         JSON 字符串，包含 kegg_results、go_results 和 summary。
     """
-    if not gene_list or not gene_list.strip():
-        return json.dumps({"error": "gene_list is empty"})
+    # 按优先级提取基因列表
+    genes: List[str] = []
 
-    genes: List[str] = [g.strip() for g in gene_list.split(",") if g.strip()]
+    if gene_list and gene_list.strip():
+        genes = [g.strip() for g in gene_list.split(",") if g.strip()]
+    elif gene_file_path and gene_file_path.strip():
+        genes = _extract_genes_from_file(gene_file_path.strip())
+        if not genes:
+            return json.dumps({"error": f"无法从文件 {gene_file_path} 中提取基因ID"})
+    elif analysis_result_id and analysis_result_id.strip():
+        genes = _extract_genes_from_result(analysis_result_id.strip())
+        if not genes:
+            return json.dumps({"error": f"无法从分析结果 {analysis_result_id} 中提取显著基因"})
+
     if not genes:
-        return json.dumps({"error": "gene_list is empty"})
+        return json.dumps({"error": "请提供基因列表、基因文件路径或差异分析结果ID"})
 
     # ID 转换: OsMH_ → OsMH63_ (保留原始 ID 映射用于结果回显)
     converted_to_original: Dict[str, str] = {}
@@ -304,7 +407,7 @@ ENRICHMENT_ANALYSIS_SCHEMA = {
         "description": (
             "对基因列表进行 KEGG 通路富集分析和 GO 功能富集分析，"
             "使用本地 MH63 水稻注释文件（Fisher 精确检验 + BH 校正）。"
-            "可接受差异分析结果中的显著基因，或用户直接提供的基因 ID 列表。"
+            "支持三种输入方式：1) 直接提供基因ID列表 2) 基因列表文件路径 3) 差异分析结果ID。"
             "返回富集通路列表、统计数据和摘要。"
         ),
         "parameters": {
@@ -313,6 +416,14 @@ ENRICHMENT_ANALYSIS_SCHEMA = {
                 "gene_list": {
                     "type": "string",
                     "description": "逗号分隔的基因 ID 列表，如 'OsMH_01G0000400,OsMH_02G0001200'",
+                },
+                "gene_file_path": {
+                    "type": "string",
+                    "description": "基因列表文件路径（.txt 每行一个基因ID，或差异分析结果 CSV）",
+                },
+                "analysis_result_id": {
+                    "type": "string",
+                    "description": "差异分析结果 ID（如 job_xxxxxxxx），从中提取显著基因进行富集分析",
                 },
                 "analysis_type": {
                     "type": "string",
@@ -331,7 +442,7 @@ ENRICHMENT_ANALYSIS_SCHEMA = {
                     "default": 0.05,
                 },
             },
-            "required": ["gene_list"],
+            "required": [],
         },
     },
 }

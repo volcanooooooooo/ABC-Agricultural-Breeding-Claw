@@ -63,6 +63,18 @@ export default function AnalysisPage() {
       message.warning('请选择数据集');
       return;
     }
+    if (!groupControl.trim()) {
+      message.warning('请输入对照组名称');
+      return;
+    }
+    if (!groupTreatment.trim()) {
+      message.warning('请输入处理组名称');
+      return;
+    }
+    if (groupControl.trim() === groupTreatment.trim()) {
+      message.warning('对照组和处理组名称不能相同');
+      return;
+    }
 
     setIsAnalyzing(true);
     setProgress({ job_id: '', status: '正在启动分析...', progress: 0 });
@@ -250,7 +262,15 @@ export default function AnalysisPage() {
               >
                 {datasets.length === 0 ? (
                   <Empty
-                    description="暂无数据集"
+                    description={
+                      <span>
+                        暂无数据集
+                        <br />
+                        <span style={{ fontSize: 12, color: '#999' }}>
+                          支持 CSV、Excel 格式的基因表达矩阵
+                        </span>
+                      </span>
+                    }
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                   >
                     <Button type="primary" onClick={() => setUploadModalVisible(true)}>
@@ -353,7 +373,15 @@ export default function AnalysisPage() {
                     }}
                   >
                     <Empty
-                      description="请选择数据集并开始分析"
+                      description={
+                        <span>
+                          请先在左侧选择数据集，填写分组名称后开始分析
+                          <br />
+                          <span style={{ fontSize: 12, color: '#999' }}>
+                            如果没有数据集，请先在"数据集管理"标签页上传
+                          </span>
+                        </span>
+                      }
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                   </Card>

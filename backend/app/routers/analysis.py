@@ -243,6 +243,86 @@ async def run_enrichment(request: EnrichmentRequest):
     return {"status": "success", "data": result}
 
 
+@router.post("/upload-genelist")
+async def upload_genelist(file: UploadFile = File(...)):
+    """上传基因列表文件，解析并返回基因ID预览"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    allowed_exts = {".txt", ".csv", ".tsv"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_exts:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型 '{ext}'，请上传 .txt/.csv/.tsv 格式文件")
+
+    uploads_dir = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    dest = uploads_dir / safe_name
+
+    content = await file.read()
+    dest.write_bytes(content)
+
+    # 解析基因列表
+    text = content.decode("utf-8", errors="ignore").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+
+    genes: list[str] = []
+    file_type = "gene_list"
+
+    # 尝试结构化解析（差异分析结果 CSV）
+    lines = text.split("\n")
+    header = lines[0].lower()
+    if "gene_id" in header and ("pvalue" in header or "log2fc" in header):
+        file_type = "diff_result"
+        import csv as csv_module
+        import io
+        sep = "\t" if "\t" in lines[0] else ","
+        reader = csv_module.DictReader(io.StringIO(text), delimiter=sep)
+        for row in reader:
+            gene_id = row.get("gene_id", "").strip()
+            if not gene_id:
+                continue
+            try:
+                pval = float(row.get("pvalue", row.get("p_value", "1")))
+                l2fc = abs(float(row.get("log2fc", row.get("log2_fc", "0"))))
+            except (ValueError, TypeError):
+                continue
+            if pval <= 0.05 and l2fc >= 1.0:
+                genes.append(gene_id)
+    elif "\t" in lines[0] and len(lines[0].split("\t")) > 3:
+        # 多列 TSV（表达矩阵），不是基因列表
+        raise HTTPException(status_code=400, detail="文件看起来是表达矩阵而非基因列表，请拖拽到差异分析流程")
+    else:
+        # 纯文本格式：每行一个基因ID 或 逗号分隔
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # 逗号分隔
+            if "," in line:
+                genes.extend(g.strip() for g in line.split(",") if g.strip())
+            else:
+                # 单行一个基因ID（忽略纯数字行）
+                if not line.replace(".", "").replace("-", "").isdigit():
+                    genes.append(line)
+
+    if not genes:
+        raise HTTPException(status_code=400, detail="未能从文件中识别到基因ID")
+
+    return {
+        "status": "success",
+        "data": {
+            "file_path": str(dest),
+            "filename": file.filename,
+            "gene_count": len(genes),
+            "gene_preview": genes[:10],
+            "file_type": file_type,
+        }
+    }
+
+
 @router.get("/kegg-image/{pathway_id}")
 async def get_kegg_pathway_image(pathway_id: str):
     """代理 KEGG 通路图 PNG 图片"""
@@ -533,6 +613,17 @@ async def stream_analysis(job_id: str):
             """异步延迟，不检查取消状态"""
             await asyncio.sleep(seconds)
 
+        async def heartbeat_delay(seconds: float):
+            """Sleep while sending SSE comments as heartbeat every 15 seconds."""
+            elapsed = 0
+            interval = 15.0
+            while elapsed < seconds:
+                wait = min(interval, seconds - elapsed)
+                await asyncio.sleep(wait)
+                elapsed += wait
+                if elapsed < seconds:
+                    yield ": heartbeat\n\n"
+
         async def check_cancellation():
             """检查是否已取消"""
             return job_id in cancelled_jobs
@@ -543,13 +634,16 @@ async def stream_analysis(job_id: str):
         try:
             # 步骤0: 开始 (0%)
             yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"正在初始化分析任务...\", \"progress\": 5, \"currentStep\": \"读取数据集\"}\n\n" % job_id
-            await delay_no_cancel(0.5)
+            async for hb in heartbeat_delay(0.5):
+                yield hb
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"正在加载数据...\", \"progress\": 10, \"currentStep\": \"数据加载\"}\n\n" % job_id
-            await delay_no_cancel(0.5)
+            async for hb in heartbeat_delay(0.5):
+                yield hb
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"init\", \"status\": \"数据加载完成，正在准备分析...\", \"progress\": 15, \"currentStep\": \"数据预处理\"}\n\n" % job_id
-            await delay_no_cancel(0.4)
+            async for hb in heartbeat_delay(0.4):
+                yield hb
 
             # 检查取消状态
             if await check_cancellation():
@@ -557,7 +651,8 @@ async def stream_analysis(job_id: str):
 
             # 步骤1: 工具轨分析 (15% -> 50%)
             yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在进行t检验分析...\", \"progress\": 20, \"currentStep\": \"工具轨 - 统计检验\"}\n\n" % job_id
-            await delay_no_cancel(0.6)
+            async for hb in heartbeat_delay(0.6):
+                yield hb
 
             # 启动工具轨任务
             tool_result = await run_tool_analysis(
@@ -566,10 +661,12 @@ async def stream_analysis(job_id: str):
             )
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在计算差异表达...\", \"progress\": 30, \"currentStep\": \"工具轨 - 差异分析\"}\n\n" % job_id
-            await delay_no_cancel(0.5)
+            async for hb in heartbeat_delay(0.5):
+                yield hb
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"正在进行p值校正...\", \"progress\": 38, \"currentStep\": \"工具轨 - p值校正\"}\n\n" % job_id
-            await delay_no_cancel(0.5)
+            async for hb in heartbeat_delay(0.5):
+                yield hb
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"tool\", \"status\": \"工具轨分析完成\", \"progress\": 50, \"currentStep\": \"工具轨 - 完成\"}\n\n" % job_id
 
@@ -585,29 +682,35 @@ async def stream_analysis(job_id: str):
             else:
                 # 步骤2: LLM轨分析 (50% -> 75%)
                 yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"正在调用大模型进行分析...\", \"progress\": 55, \"currentStep\": \"LLM轨 - 模型调用\"}\n\n" % job_id
-                await delay_no_cancel(0.4)
+                async for hb in heartbeat_delay(0.4):
+                    yield hb
 
                 llm_result = await run_llm_analysis(
                     df, control_samples, treatment_samples
                 )
 
                 yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型正在解读数据...\", \"progress\": 60, \"currentStep\": \"LLM轨 - 数据解读\"}\n\n" % job_id
-                await delay_no_cancel(0.5)
+                async for hb in heartbeat_delay(0.5):
+                    yield hb
 
                 yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型正在推理差异基因...\", \"progress\": 68, \"currentStep\": \"LLM轨 - 基因推理\"}\n\n" % job_id
-                await delay_no_cancel(0.4)
+                async for hb in heartbeat_delay(0.4):
+                    yield hb
 
                 yield "data: {\"job_id\": \"%s\", \"track\": \"llm\", \"status\": \"大模型轨分析完成\", \"progress\": 75, \"currentStep\": \"LLM轨 - 完成\"}\n\n" % job_id
-                await delay_no_cancel(0.3)
+                async for hb in heartbeat_delay(0.3):
+                    yield hb
 
             # 步骤3: 一致性分析 (75% -> 90%)
             yield "data: {\"job_id\": \"%s\", \"track\": \"consistency\", \"status\": \"正在计算双轨一致性...\", \"progress\": 82, \"currentStep\": \"一致性分析\"}\n\n" % job_id
-            await delay_no_cancel(0.4)
+            async for hb in heartbeat_delay(0.4):
+                yield hb
 
             consistency = calculate_consistency(tool_result, llm_result)
 
             yield "data: {\"job_id\": \"%s\", \"track\": \"consistency\", \"status\": \"一致性分析完成，正在生成报告...\", \"progress\": 88, \"currentStep\": \"报告生成\"}\n\n" % job_id
-            await delay_no_cancel(0.3)
+            async for hb in heartbeat_delay(0.3):
+                yield hb
 
             # 构建结果
             result = AnalysisResult(
@@ -664,7 +767,8 @@ async def stream_analysis(job_id: str):
 
             # 步骤4: 完成 (90% -> 100%)
             yield "data: {\"job_id\": \"%s\", \"status\": \"completed\", \"progress\": 95, \"currentStep\": \"完成\"}\n\n" % job_id
-            await delay_no_cancel(0.3)
+            async for hb in heartbeat_delay(0.3):
+                yield hb
 
             # 发送结果
             yield "data: {\"job_id\": \"%s\", \"result\": %s}\n\n" % (
@@ -675,10 +779,13 @@ async def stream_analysis(job_id: str):
             yield "data: {\"job_id\": \"%s\", \"status\": \"completed\", \"progress\": 100, \"currentStep\": \"完成\"}\n\n" % job_id
 
         except Exception as e:
-            yield "data: {\"job_id\": \"%s\", \"status\": \"error\", \"message\": \"%s\"}\n\n" % (
-                job_id,
-                str(e).replace('"', '\\"')
-            )
+            import json as json_module
+            error_msg = json_module.dumps({
+                "job_id": job_id,
+                "status": "error",
+                "message": "分析过程出现错误，请检查数据格式后重试",
+            }, ensure_ascii=False)
+            yield f"data: {error_msg}\n\n"
         finally:
             # 清理任务
             if job_id in analysis_tasks:

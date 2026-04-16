@@ -1,71 +1,89 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface UseSSEOptions {
   onMessage?: (data: any) => void
   onError?: (error: Event) => void
   onOpen?: () => void
-  enabled?: boolean
 }
 
 interface UseSSEReturn {
-  status: 'connecting' | 'connected' | 'disconnected'
-  lastMessage: any | null
+  status: 'connected' | 'connecting' | 'disconnected'
   reconnect: () => void
+  close: () => void
 }
 
+const MAX_RETRIES = 5
+const BASE_DELAY = 1000 // 1 second
+
 export function useSSE(url: string | null, options: UseSSEOptions = {}): UseSSEReturn {
-  const { onMessage, onError, onOpen, enabled = true } = options
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected')
-  const [lastMessage, setLastMessage] = useState<any>(null)
+  const { onMessage, onError, onOpen } = options
+  const [status, setStatus] = useState<UseSSEReturn['status']>('disconnected')
   const eventSourceRef = useRef<EventSource | null>(null)
+  const retryCountRef = useRef(0)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
+  }, [])
+
+  const close = useCallback(() => {
+    clearRetryTimer()
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    setStatus('disconnected')
+  }, [clearRetryTimer])
 
   const connect = useCallback(() => {
-    if (!url || !enabled) return
-
+    if (!url) return
+    close()
     setStatus('connecting')
+
     const eventSource = new EventSource(url)
     eventSourceRef.current = eventSource
 
     eventSource.onopen = () => {
       setStatus('connected')
+      retryCountRef.current = 0 // reset on successful connection
       onOpen?.()
     }
 
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        setLastMessage(data)
         onMessage?.(data)
       } catch (e) {
-        console.error('SSE parse error:', e)
+        console.warn('SSE JSON parse error:', e)
       }
     }
 
     eventSource.onerror = (error) => {
       setStatus('disconnected')
       onError?.(error)
-      // 简单重连逻辑
-      setTimeout(() => {
-        if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-          connect()
+
+      if (eventSource.readyState === EventSource.CLOSED) {
+        if (retryCountRef.current < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY * Math.pow(2, retryCountRef.current), 30000)
+          retryCountRef.current++
+          retryTimerRef.current = setTimeout(() => connect(), delay)
         }
-      }, 3000)
+      }
     }
-  }, [url, enabled, onMessage, onError, onOpen])
+  }, [url, onMessage, onError, onOpen, close])
 
   const reconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-    }
+    retryCountRef.current = 0
     connect()
   }, [connect])
 
   useEffect(() => {
-    connect()
-    return () => {
-      eventSourceRef.current?.close()
-    }
-  }, [connect])
+    if (url) connect()
+    return () => close()
+  }, [url]) // intentionally only depend on url
 
-  return { status, lastMessage, reconnect }
+  return { status, reconnect, close }
 }

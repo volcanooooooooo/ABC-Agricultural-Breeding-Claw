@@ -1,8 +1,11 @@
 """Differential expression analysis tool - plain function + JSON schema for Agent Loop."""
 
+import io
 import json
+import tempfile
+import warnings
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -18,6 +21,7 @@ def differential_expression_analysis(
     treatment_group: str = "osbzip23",
     pvalue_threshold: float = 0.05,
     log2fc_threshold: float = 1.0,
+    inline_data: Optional[str] = None,
 ) -> str:
     """Perform differential expression analysis on gene expression data.
 
@@ -26,16 +30,26 @@ def differential_expression_analysis(
     result: Dict[str, Any] = {"significant_genes": [], "volcano_data": [], "summary": {}}
 
     try:
-        # Resolve path relative to project root
-        path = Path(dataset_path)
-        if not path.is_absolute():
-            project_root = Path(__file__).parent.parent.parent.parent
-            path = project_root / dataset_path
+        # 优先使用内联数据
+        if inline_data:
+            try:
+                df = pd.read_csv(io.StringIO(inline_data), sep="\t", index_col=0)
+            except Exception:
+                try:
+                    df = pd.read_csv(io.StringIO(inline_data), sep=",", index_col=0)
+                except Exception as e:
+                    return json.dumps({"error": f"无法解析内联数据: {str(e)}"}, ensure_ascii=False)
+        else:
+            # Resolve path relative to project root
+            path = Path(dataset_path)
+            if not path.is_absolute():
+                project_root = Path(__file__).parent.parent.parent.parent
+                path = project_root / dataset_path
 
-        if not path.exists():
-            return json.dumps({"error": f"Dataset file not found: {path}"}, ensure_ascii=False)
+            if not path.exists():
+                return json.dumps({"error": f"Dataset file not found: {path}"}, ensure_ascii=False)
 
-        df = pd.read_csv(path, sep="\t", index_col=0)
+            df = pd.read_csv(path, sep="\t", index_col=0)
         if df.empty:
             return json.dumps({"error": "Dataset is empty"}, ensure_ascii=False)
 
@@ -55,6 +69,8 @@ def differential_expression_analysis(
 
         gene_results = []
         significant_genes = []
+        skipped_zero = 0
+        skipped_variance = 0
 
         for gene_id, row in df.iterrows():
             ctrl_vals = [row[s] for s in control_samples]
@@ -67,12 +83,14 @@ def differential_expression_analysis(
             trt_mean = np.mean(trt_vals)
 
             if ctrl_mean <= 0 or trt_mean <= 0:
+                skipped_zero += 1
                 continue
 
             log2fc = float(np.log2(trt_mean / ctrl_mean))
             _, pvalue = stats.ttest_ind(ctrl_vals, trt_vals)
             pvalue = float(pvalue)
             if np.isnan(pvalue):
+                skipped_variance += 1
                 continue
 
             is_sig = pvalue < pvalue_threshold and abs(log2fc) >= log2fc_threshold
@@ -105,6 +123,8 @@ def differential_expression_analysis(
             "significant_genes_count": len(significant_genes),
             "upregulated_count": len(up),
             "downregulated_count": len(down),
+            "skipped_zero_expression": skipped_zero,
+            "skipped_no_variance": skipped_variance,
             "control_group": control_group,
             "treatment_group": treatment_group,
             "control_samples": control_samples,
@@ -156,6 +176,10 @@ DIFFERENTIAL_ANALYSIS_SCHEMA = {
                     "type": "number",
                     "description": "log2 Fold Change 阈值，默认 1.0",
                     "default": 1.0,
+                },
+                "inline_data": {
+                    "type": "string",
+                    "description": "用户直接粘贴的表达数据（TSV/CSV格式），优先于 dataset_path 使用",
                 },
             },
             "required": [],

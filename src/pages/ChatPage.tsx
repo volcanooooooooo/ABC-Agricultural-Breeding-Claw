@@ -24,7 +24,7 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result' | 'analysis-method-select'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'enrichment-retry' | 'blast-result' | 'analysis-method-select' | 'enrichment-file-confirm'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
@@ -33,6 +33,13 @@ interface ChatMessage extends Message {
   enrichmentResult?: EnrichmentResult
   blastResult?: BlastResult
   attachedFile?: { name: string; path: string }
+  enrichmentFileInfo?: {
+    filePath: string
+    filename: string
+    geneCount: number
+    genePreview: string[]
+    fileType: 'gene_list' | 'diff_result'
+  }
 }
 
 interface ChatSession {
@@ -63,7 +70,7 @@ export default function ChatPage() {
   const [ontologyNodeId, setOntologyNodeId] = useState<string | undefined>()
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; type: 'fasta' | 'matrix' } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ path: string; name: string; type: 'fasta' | 'matrix' | 'genelist' } | null>(null)
   const [groupModalOpen, setGroupModalOpen] = useState(false)
   const [pendingUpload, setPendingUpload] = useState<{
     filePath: string
@@ -71,6 +78,7 @@ export default function ChatPage() {
     columns: string[]
     rowCount: number
   } | null>(null)
+  const [siderCollapsed, setSiderCollapsed] = useState(window.innerWidth < 768)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const matrixFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -98,10 +106,31 @@ export default function ChatPage() {
     loadDatasets()
   }, [])
 
-  // 保存会话到 localStorage
+  // 保存会话到 localStorage（裁剪大体积数据避免超出配额）
   useEffect(() => {
     if (sessions.length > 0) {
-      localStorage.setItem('chat_sessions', JSON.stringify(sessions))
+      try {
+        const trimmed = sessions.map(s => ({
+          ...s,
+          messages: s.messages.map(msg => {
+            // 移除大体积的分析结果数据，只保留消息文本和类型
+            const { analysisResult, enrichmentResult, blastResult, ...rest } = msg as any
+            return rest
+          }),
+        }))
+        localStorage.setItem('chat_sessions', JSON.stringify(trimmed))
+      } catch (e) {
+        // QuotaExceededError: 清理旧会话后重试
+        if (sessions.length > 1) {
+          try {
+            const recent = sessions.slice(-3) // 只保留最近 3 个会话
+            localStorage.setItem('chat_sessions', JSON.stringify(recent))
+          } catch {
+            // 仍然失败，清空存储
+            localStorage.removeItem('chat_sessions')
+          }
+        }
+      }
     }
   }, [sessions])
 
@@ -177,17 +206,18 @@ export default function ChatPage() {
     }))
   }
 
-  // 识别富集分析意图（优先级高于差异分析）
-  const detectEnrichmentIntent = (text: string): boolean => {
-    const keywords = ['富集', 'kegg', 'go分析', 'go富集', 'pathway', '通路分析']
-    return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
+  // 识别差异表达分析意图（仅斜杠命令）
+  const detectAnalysisIntent = (text: string): boolean => {
+    const commands = ['/analyze', '/diff', '/analyse']
+    return commands.some(cmd => text.toLowerCase().startsWith(cmd))
   }
 
-  // 识别差异表达分析意图（排除富集分析）
-  const detectAnalysisIntent = (text: string): boolean => {
-    if (detectEnrichmentIntent(text)) return false
-    const keywords = ['差异表达', '差异基因', '差异分析', '/analyze', '/diff', '/analyse', 'deseq', 't检验', '双轨']
-    return keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))
+  // 解析 AI 回复中的 ANALYSIS_READY 标记
+  const parseAnalysisReady = (content: string): { hasIntent: boolean; cleanContent: string } => {
+    const marker = '<!-- ANALYSIS_READY -->'
+    const hasIntent = content.includes(marker)
+    const cleanContent = content.replace(marker, '').trim()
+    return { hasIntent, cleanContent }
   }
 
   // 知识本体查询意图识别
@@ -199,23 +229,24 @@ export default function ChatPage() {
 
   // 基因查询意图识别
   const detectGeneQueryIntent = (text: string): string | null => {
-    // 基因查询模式：查看/展示 + 基因名
+    // 排除多行文本（粘贴的表达数据）和过长输入
+    if (text.includes('\t') || text.includes('\n') || text.length > 100) return null
+
+    // 基因查询模式：需要明确的查询上下文
     const patterns = [
-      /基因(\w+)/i,           // "展示基因Gene7" / "查看基因Gene7详情"
-      /(gene\d+)/i,          // "查看 gene7" / "gene7详情"
-      /(?:Gene|gene)(\d+)\s*详情/i,  // "Gene7详情" / "gene7详情"
+      /(?:查看|展示|查询|搜索|显示).*基因\s*(\w+)/i,  // "查看基因Gene7"
+      /基因\s*(\w+)\s*(?:详情|信息|表达)/i,            // "基因Gene7详情"
+      /(?:查看|展示|查询|搜索|显示)\s*(gene\d+)/i,     // "查看 Gene7"
+      /(gene\d+)\s*(?:详情|信息|怎么样)/i,             // "Gene7详情"
     ]
 
     for (const pattern of patterns) {
       const match = text.match(pattern)
       if (match) {
-        // 返回匹配的基因ID
         const geneId = match[1] || match[0]
-        // 标准化为 GeneX 格式
         if (/^gene\d+$/i.test(geneId)) {
           return 'Gene' + geneId.slice(4).toLowerCase()
         }
-        // 如果是纯数字（如 "7详情" 匹配到的），加上 Gene 前缀
         if (/^\d+$/.test(geneId)) {
           return 'Gene' + geneId
         }
@@ -531,9 +562,13 @@ export default function ChatPage() {
       )
     } catch (error: any) {
       console.error('Chat error:', error)
-      const errorMsg = error.response?.data?.detail || error.message || '未知错误'
+      const errorMsg = error.friendlyMessage
+        || error.response?.data?.detail
+        || '抱歉，发生了一些错误，请稍后重试'
       updateCurrentSession(msgs =>
-        msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: `抱歉，发生了一些错误：${errorMsg}`, isLoading: false } : msg)
+        msgs.map(msg => msg.id === assistantMessage.id
+          ? { ...msg, content: errorMsg, isLoading: false }
+          : msg)
       )
     }
   }
@@ -707,56 +742,85 @@ export default function ChatPage() {
     }
   }
 
-  // 从差异分析结果触发富集分析
+  // 从差异分析结果触发富集分析（通过 Agent）
   const handleEnrichmentFromResult = async (analysisResult: AnalysisResult) => {
     // 移除富集提示卡片
     updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
 
-    // 使用全部显著基因，兼容旧数据回退到 significant_genes
-    const allGenes = analysisResult.tool_result.all_significant_genes
-      ?? analysisResult.tool_result.significant_genes
-    const geneIds = allGenes.map(g => g.gene_id)
-
-    const loadingId = `enrichment-loading-${Date.now()}`
-
-    // 插入加载消息
-    const loadingMsg: ChatMessage = {
-      id: loadingId,
-      role: 'assistant',
-      content: `正在对 ${geneIds.length} 个显著基因进行 KEGG/GO 富集分析...`,
+    // 用户看到的是简洁文本，发给后端的带 job ID
+    const displayMsg: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'user',
+      content: '请对差异分析中的显著基因进行 KEGG/GO 富集分析',
       timestamp: new Date().toString(),
-      type: 'enrichment-loading',
     }
-    updateCurrentSession(msgs => [...msgs, loadingMsg])
+    updateCurrentSession(msgs => [...msgs, displayMsg])
     setIsAtBottom(true)
+    setLoading(true)
+
+    // 发给后端的消息带上 job ID（前端不显示）
+    const backendMsg: ChatMessage = {
+      ...displayMsg,
+      content: `请对差异分析结果 ${analysisResult.id} 中的显著基因进行 KEGG/GO 富集分析`,
+    }
+
+    const assistantMessage: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toString(),
+      isLoading: true,
+    }
+    updateCurrentSession(msgs => [...msgs, assistantMessage])
 
     try {
-      const res = await analysisApi.runEnrichment(geneIds)
-      const enrichmentData: EnrichmentResult = res.data.data
-
-      // 替换 loading 为结果
+      const response = await chatApi.sendMessage({ message: backendMsg.content })
+      const assistantContent = (response.data as any).content ?? (response.data as any).response ?? ''
       updateCurrentSession(msgs =>
-        msgs.map(msg =>
-          msg.id === loadingId
-            ? { ...msg, type: 'enrichment-result' as const, content: '', enrichmentResult: enrichmentData }
-            : msg
-        )
+        msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: assistantContent, isLoading: false } : msg)
       )
-    } catch (err: any) {
-      // 替换 loading 为错误提示
+    } catch (error: any) {
+      console.error('Enrichment error:', error)
+      const errorMsg = error.friendlyMessage
+        || error.response?.data?.detail
+        || '富集分析失败，请重试'
+      // 失败时显示错误信息和重试按钮
       updateCurrentSession(msgs =>
-        msgs.map(msg =>
-          msg.id === loadingId
-            ? { ...msg, type: 'text' as const, content: `富集分析失败: ${err?.response?.data?.detail || err.message || '未知错误'}` }
-            : msg
-        )
+        msgs.map(msg => msg.id === assistantMessage.id
+          ? { ...msg, content: errorMsg, isLoading: false, type: 'enrichment-retry' as const, analysisResult }
+          : msg)
       )
     }
+    setLoading(false)
   }
 
   // 跳过富集分析提示
   const handleSkipEnrichment = () => {
-    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt' && msg.type !== 'enrichment-retry'))
+  }
+
+  // 确认富集分析（从文件）
+  const handleEnrichmentFileConfirm = async (fileInfo: { filePath: string; filename: string; geneCount: number }) => {
+    // 移除确认卡片
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-file-confirm'))
+
+    // 构造用户消息发送给 Agent
+    const userMsg: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'user',
+      content: `请对文件 ${fileInfo.filename} 中的 ${fileInfo.geneCount} 个基因进行 KEGG/GO 富集分析（文件路径：${fileInfo.filePath}）`,
+      timestamp: new Date().toString(),
+    }
+    updateCurrentSession(msgs => [...msgs, userMsg])
+    setIsAtBottom(true)
+    setLoading(true)
+    await handleNormalChat(userMsg)
+    setLoading(false)
+  }
+
+  // 取消富集分析
+  const handleEnrichmentFileCancel = () => {
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-file-confirm'))
   }
 
   const COMMANDS = [
@@ -781,21 +845,22 @@ export default function ChatPage() {
         const res = await analysisApi.uploadFasta(file)
         const data = (res.data as any).data ?? res.data
         setUploadedFile({ path: data.file_path, name: data.filename ?? file.name, type: 'fasta' })
-        message.success(`文件 ${file.name} 上传成功`)
+        message.success(`文件 ${file.name} 已附加，请输入分析指令`)
       } catch (err: any) {
         message.error('文件上传失败: ' + (err.message || '未知错误'))
       }
     } else if (matrixExts.includes(ext) || ext === '.txt') {
-      // 添加用户消息
-      updateCurrentSession(msgs => [...msgs, {
-        id: `${Date.now()}-upload-user`,
-        role: 'user' as const,
-        content: `上传表达矩阵文件：${file.name}`,
-        timestamp: new Date().toString(),
-      }])
-      await handleUploadAndAnalyze(file)
+      // 上传文件，附加到输入框，等用户输入指令后再处理
+      try {
+        const res = await analysisApi.uploadMatrix(file)
+        const data = (res.data as any).data ?? res.data
+        setUploadedFile({ path: data.file_path, name: data.filename ?? file.name, type: 'matrix' })
+        message.success(`文件 ${file.name} 已附加，请输入分析指令`)
+      } catch (err: any) {
+        message.error('文件上传失败: ' + (err.response?.data?.detail || err.message || '未知错误'))
+      }
     } else {
-      message.error('请上传 FASTA 格式文件（.fa, .fasta）或表达矩阵文件（.csv, .tsv）')
+      message.error('请上传 FASTA 格式文件（.fa, .fasta）或数据文件（.csv, .tsv, .txt）')
     }
   }
 
@@ -862,10 +927,15 @@ export default function ChatPage() {
 
   const tryParseEnrichmentResult = (content: string): EnrichmentResult | null => {
     if (!content) return null
-    const match = content.match(/<!-- ENRICHMENT_DATA: (.+?) -->/)
-    if (!match) return null
+    const startMarker = '<!-- ENRICHMENT_DATA: '
+    const endMarker = ' -->'
+    const startIdx = content.indexOf(startMarker)
+    if (startIdx === -1) return null
+    const jsonStart = startIdx + startMarker.length
+    const endIdx = content.indexOf(endMarker, jsonStart)
+    if (endIdx === -1) return null
     try {
-      return JSON.parse(match[1]) as EnrichmentResult
+      return JSON.parse(content.substring(jsonStart, endIdx)) as EnrichmentResult
     } catch {
       return null
     }
@@ -873,10 +943,15 @@ export default function ChatPage() {
 
   const tryParseBlastResult = (content: string): BlastResult | null => {
     if (!content) return null
-    const match = content.match(/<!-- BLAST_DATA: (.+?) -->/)
-    if (!match) return null
+    const startMarker = '<!-- BLAST_DATA: '
+    const endMarker = ' -->'
+    const startIdx = content.indexOf(startMarker)
+    if (startIdx === -1) return null
+    const jsonStart = startIdx + startMarker.length
+    const endIdx = content.indexOf(endMarker, jsonStart)
+    if (endIdx === -1) return null
     try {
-      return JSON.parse(match[1]) as BlastResult
+      return JSON.parse(content.substring(jsonStart, endIdx)) as BlastResult
     } catch {
       return null
     }
@@ -1020,48 +1095,6 @@ export default function ChatPage() {
           ))}
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
             💡 直接描述分析需求，系统会自动匹配合适的数据集
-          </div>
-        </div>
-      )
-    }
-
-    // /datasets 数据集列表
-    if (msg.content === '__datasets_list__') {
-      return (
-        <div style={{ minWidth: 480, maxWidth: 620 }}>
-          <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            📂 可用数据集（共 {datasets.length} 个）
-          </div>
-          {datasets.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>暂无数据集，请先上传数据集。</div>
-          ) : (
-            datasets.map((ds, idx) => (
-              <div key={ds.id} style={{
-                background: 'var(--color-bg-input)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 12,
-                padding: '12px 16px',
-                marginBottom: idx < datasets.length - 1 ? 8 : 0,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-text-primary)' }}>{ds.name}</span>
-                  <Tag style={{ fontSize: 11, fontFamily: 'monospace' }}>{ds.id}</Tag>
-                </div>
-                {ds.description && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{ds.description}</div>
-                )}
-                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {ds.gene_count != null && <span>基因数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.gene_count.toLocaleString()}</b></span>}
-                  {ds.sample_count != null && <span>样本数：<b style={{ color: 'var(--color-text-secondary)' }}>{ds.sample_count}</b></span>}
-                  {ds.groups && (
-                    <span>分组：<b style={{ color: 'var(--color-text-secondary)' }}>{Object.keys(ds.groups).join(' / ')}</b></span>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
-            💡 直接描述分析需求，系统会自动匹配相关数据集
           </div>
         </div>
       )
@@ -1288,6 +1321,57 @@ export default function ChatPage() {
       return <EnrichmentResultCard result={msg.enrichmentResult} />
     }
 
+    // 富集分析文件确认卡片
+    if (msg.type === 'enrichment-file-confirm' && msg.enrichmentFileInfo) {
+      const info = msg.enrichmentFileInfo
+      return (
+        <Card
+          size="small"
+          style={{
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12,
+            maxWidth: 500,
+          }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>
+              检测到 {info.geneCount} 个基因ID
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              文件：{info.filename} ({info.fileType === 'diff_result' ? '差异分析结果' : '基因列表'})
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              预览：{info.genePreview.join(', ')}
+              {info.geneCount > info.genePreview.length && ` ...等${info.geneCount}个`}
+            </div>
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
+                onClick={() => handleEnrichmentFileConfirm({
+                  filePath: info.filePath,
+                  filename: info.filename,
+                  geneCount: info.geneCount,
+                })}
+              >
+                开始富集分析
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                style={{ color: 'var(--color-text-muted)' }}
+                onClick={handleEnrichmentFileCancel}
+              >
+                取消
+              </Button>
+            </Space>
+          </Space>
+        </Card>
+      )
+    }
+
     // 富集分析提示卡片
     if (msg.type === 'enrichment-prompt' && msg.analysisResult) {
       const totalSig = msg.analysisResult.tool_result.total_significant
@@ -1332,10 +1416,8 @@ export default function ChatPage() {
       )
     }
 
-    // 富集分析提示卡片
-    if (msg.type === 'enrichment-prompt' && msg.analysisResult) {
-      const totalSig = msg.analysisResult.tool_result.total_significant
-        ?? msg.analysisResult.tool_result.significant_genes.length
+    // 富集分析失败重试卡片
+    if (msg.type === 'enrichment-retry' && msg.analysisResult) {
       return (
         <div style={{
           background: 'var(--color-bg-card)',
@@ -1345,14 +1427,13 @@ export default function ChatPage() {
           minWidth: 360,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 18 }}>🔬</span>
+            <span style={{ fontSize: 18 }}>&#x26A0;&#xFE0F;</span>
             <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
-              差异分析完成
+              富集分析失败
             </span>
           </div>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
-            共发现 <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{totalSig}</span> 个显著差异基因。
-            <br />是否对全部基因进行 KEGG/GO 富集分析？
+            {msg.content || '分析过程中出现错误'}，您可以重新尝试。
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
@@ -1361,7 +1442,7 @@ export default function ChatPage() {
               style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
               onClick={() => handleEnrichmentFromResult(msg.analysisResult!)}
             >
-              立即富集
+              重新分析
             </Button>
             <Button
               type="text"
@@ -1369,7 +1450,7 @@ export default function ChatPage() {
               style={{ color: 'var(--color-text-muted)' }}
               onClick={handleSkipEnrichment}
             >
-              跳过
+              取消
             </Button>
           </div>
         </div>
@@ -1427,7 +1508,11 @@ export default function ChatPage() {
     // 检测消息内容是否包含富集分析数据
     const enrichmentResult = tryParseEnrichmentResult(msg.content)
     if (enrichmentResult) {
-      const cleanContent = msg.content.replace(/<!-- ENRICHMENT_DATA: .+? -->/, '').trim()
+      const markerStart = msg.content.indexOf('<!-- ENRICHMENT_DATA: ')
+      const markerEnd = msg.content.indexOf(' -->', markerStart)
+      const cleanContent = markerStart !== -1 && markerEnd !== -1
+        ? (msg.content.slice(0, markerStart) + msg.content.slice(markerEnd + 4)).trim()
+        : msg.content.trim()
       return (
         <div>
           {cleanContent && (
@@ -1454,37 +1539,67 @@ export default function ChatPage() {
     }
 
     // 普通文本消息
+    const { hasIntent, cleanContent } = msg.role === 'assistant'
+      ? parseAnalysisReady(msg.content)
+      : { hasIntent: false, cleanContent: msg.content }
+
     return (
-      <div style={{
-        background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)',
-        color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)',
-        padding: '12px 16px',
-        borderRadius: 16,
-        lineHeight: 1.6
-      }}>
-        {msg.role === 'assistant' ? (
-          <div className="markdown-body">
-            <ReactMarkdown>{msg.content}</ReactMarkdown>
-          </div>
-        ) : (
-          <>
-            {msg.content}
-            {msg.attachedFile && (
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                marginLeft: msg.content ? 8 : 0,
-                background: 'rgba(255,255,255,0.2)',
-                padding: '4px 10px',
+      <div>
+        <div style={{
+          background: msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-bg-card)',
+          color: msg.role === 'user' ? '#fff' : 'var(--color-text-primary)',
+          padding: '12px 16px',
+          borderRadius: 16,
+          lineHeight: 1.6
+        }}>
+          {msg.role === 'assistant' ? (
+            <div className="markdown-body">
+              <ReactMarkdown>{cleanContent}</ReactMarkdown>
+            </div>
+          ) : (
+            <>
+              {msg.content}
+              {msg.attachedFile && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginLeft: msg.content ? 8 : 0,
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                }}>
+                  <FileOutlined style={{ fontSize: 14 }} />
+                  <span>{msg.attachedFile.name}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {hasIntent && (
+          <div style={{ marginTop: 12 }}>
+            <Button
+              type="primary"
+              icon={<ArrowRightOutlined />}
+              onClick={() => {
+                updateCurrentSession(msgs => [...msgs, {
+                  id: `${Date.now()}-analysis-method`,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: new Date().toString(),
+                  type: 'analysis-method-select',
+                }])
+              }}
+              style={{
                 borderRadius: 8,
-                fontSize: 13,
-              }}>
-                <FileOutlined style={{ fontSize: 14 }} />
-                <span>{msg.attachedFile.name}</span>
-              </div>
-            )}
-          </>
+                background: 'var(--gradient-accent)',
+                border: 'none',
+              }}
+            >
+              开始差异分析
+            </Button>
+          </div>
         )}
       </div>
     )
@@ -1561,7 +1676,21 @@ export default function ChatPage() {
   return (
     <Layout style={{ height: '100vh', background: 'var(--color-bg-dark)' }}>
       {/* 右侧会话列表 */}
-      <Sider width={280} style={{ background: 'var(--color-bg-card)', borderLeft: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}>
+      <Sider
+        width={280}
+        collapsedWidth={0}
+        collapsed={siderCollapsed}
+        breakpoint="md"
+        onBreakpoint={(broken) => setSiderCollapsed(broken)}
+        trigger={null}
+        collapsible
+        style={{
+          background: '#faf8f5',
+          borderRight: '1px solid var(--color-border)',
+          height: '100vh',
+          overflow: 'auto',
+        }}
+      >
         <div style={{ padding: 20 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={createNewSession} block size="large" style={{ background: 'var(--gradient-accent)', border: 'none' }}>
             新建对话
@@ -1649,6 +1778,14 @@ export default function ChatPage() {
         {/* 顶部栏 */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {siderCollapsed && (
+              <Button
+                type="text"
+                icon={<MessageOutlined />}
+                onClick={() => setSiderCollapsed(false)}
+                style={{ marginRight: 8 }}
+              />
+            )}
             <img src={iconImg} alt="ABC Logo" width={44} height={44} style={{ borderRadius: '50%' }} />
             <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>ABC: Agricultural Breeding Claw</span>
           </div>
@@ -1741,6 +1878,7 @@ export default function ChatPage() {
                   {msg.role !== 'user' && (
                     <Avatar
                       size={36}
+                      alt="AI 助手"
                       style={{ background: 'transparent', padding: 0, overflow: 'visible' }}
                       icon={
                         <img src={iconImg} alt="ABC" width={44} height={44} style={{ borderRadius: '50%' }} />
@@ -1751,7 +1889,7 @@ export default function ChatPage() {
                     {msg.role !== 'user' && <div style={{ fontSize: 12, color: 'var(--color-gold)', marginBottom: 4 }}>ABC</div>}
                     {renderMessageContent(msg)}
                   </div>
-                  {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
+                  {msg.role === 'user' && <Avatar alt="用户" icon={<UserOutlined />} style={{ background: 'var(--color-accent)' }} />}
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -1818,6 +1956,7 @@ export default function ChatPage() {
               </Tag>
             )}
             <TextArea
+              aria-label="输入分析问题"
               value={input}
               onChange={(e) => {
                 const val = e.target.value
@@ -1838,6 +1977,7 @@ export default function ChatPage() {
               disabled={loading}
             />
             <Button
+              aria-label="发送消息"
               type="primary"
               shape="circle"
               icon={<SendOutlined />}

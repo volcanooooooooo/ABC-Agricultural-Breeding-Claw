@@ -11,10 +11,12 @@ import {
   ArrowRightOutlined
 } from '@ant-design/icons'
 import iconImg from '../img/icon.png'
-import cogLogo from '../img/cog.png'
+import cogLogo from '../img/cog.jpg'
 import whutLogo from '../img/武汉理工.webp'
 import hznydxLogo from '../img/华中农业大学.jpg'
 import jlnndLogo from '../img/吉林农大.jpg'
+import ahsnkyLogo from '../img/安徽省农科院.png'
+import anndLogo from '../img/安农大.png'
 
 interface FlowStep {
   title: string
@@ -105,16 +107,20 @@ export function AnalysisFlowChart() {
       </div>
 
       {/* 合作单位 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, marginTop: 250, paddingTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, marginTop: 'auto', paddingTop: 24 }}>
         <div style={{ fontSize: 13, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>合作单位</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <img src={cogLogo} alt="武汉理工大学" height={60} style={{ objectFit: 'contain', borderRadius: 8 }} />
-          <img src={whutLogo} alt="三亚研究院" height={60} style={{ objectFit: 'contain', borderRadius: 8 }} />
-          <div style={{ height: 68, width: 68, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={hznydxLogo} alt="华中农业大学" height={64} style={{ objectFit: 'contain' }} />
+          <img src={cogLogo} alt="认知智能全国重点实验室" height={80} style={{ objectFit: 'contain', borderRadius: 8 }} />
+          <img src={whutLogo} alt="三亚研究院" height={75} style={{ objectFit: 'contain', borderRadius: 8 }} />
+          <div style={{ height: 80, width: 80, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={hznydxLogo} alt="华中农业大学" height={76} style={{ objectFit: 'contain' }} />
           </div>
-          <div style={{ height: 68, width: 68, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={jlnndLogo} alt="吉林农大" height={64} style={{ objectFit: 'contain' }} />
+          <div style={{ height: 80, width: 80, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={jlnndLogo} alt="吉林农大" height={76} style={{ objectFit: 'contain' }} />
+          </div>
+          <img src={ahsnkyLogo} alt="安徽省农业科学院" height={80} style={{ objectFit: 'contain', borderRadius: 8 }} />
+          <div style={{ height: 80, width: 80, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={anndLogo} alt="安徽农业大学" height={76} style={{ objectFit: 'contain' }} />
           </div>
         </div>
       </div>
