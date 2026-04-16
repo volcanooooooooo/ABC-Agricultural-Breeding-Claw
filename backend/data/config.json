@@ -1,7 +1,0 @@
-{
-  "llm_provider": "qwen",
-  "qwen_api_key": "sk-5eb1a59fccca4f3a9c083048d9fb470a",
-  "qwen_model": "qwen-turbo",
-  "llm_temperature": 1.0,
-  "llm_max_tokens": 2000
-}

@@ -24,7 +24,7 @@ const { Sider, Content } = Layout
 
 interface ChatMessage extends Message {
   isLoading?: boolean
-  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'blast-result' | 'analysis-method-select' | 'enrichment-file-confirm'
+  type?: 'text' | 'progress' | 'analysis' | 'result' | 'dataset-select' | 'dataset-selected' | 'step' | 'gene-query' | 'enrichment-prompt' | 'enrichment-loading' | 'enrichment-result' | 'enrichment-retry' | 'blast-result' | 'analysis-method-select' | 'enrichment-file-confirm'
   progress?: { track: 'tool' | 'llm' | 'init' | 'consistency'; status: string; progress: number; currentStep?: string; elapsedTime?: number }
   analysisResult?: AnalysisResult
   candidateDatasets?: Dataset[]
@@ -747,26 +747,56 @@ export default function ChatPage() {
     // 移除富集提示卡片
     updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
 
-    const totalSig = analysisResult.tool_result.total_significant
-      ?? analysisResult.tool_result.significant_genes.length
-
-    // 构造用户消息发送给 Agent
-    const userMsg: ChatMessage = {
+    // 用户看到的是简洁文本，发给后端的带 job ID
+    const displayMsg: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       role: 'user',
-      content: `请对差异分析结果 ${analysisResult.id} 中的 ${totalSig} 个显著基因进行 KEGG/GO 富集分析`,
+      content: '请对差异分析中的显著基因进行 KEGG/GO 富集分析',
       timestamp: new Date().toString(),
     }
-    updateCurrentSession(msgs => [...msgs, userMsg])
+    updateCurrentSession(msgs => [...msgs, displayMsg])
     setIsAtBottom(true)
     setLoading(true)
-    await handleNormalChat(userMsg)
+
+    // 发给后端的消息带上 job ID（前端不显示）
+    const backendMsg: ChatMessage = {
+      ...displayMsg,
+      content: `请对差异分析结果 ${analysisResult.id} 中的显著基因进行 KEGG/GO 富集分析`,
+    }
+
+    const assistantMessage: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toString(),
+      isLoading: true,
+    }
+    updateCurrentSession(msgs => [...msgs, assistantMessage])
+
+    try {
+      const response = await chatApi.sendMessage({ message: backendMsg.content })
+      const assistantContent = (response.data as any).content ?? (response.data as any).response ?? ''
+      updateCurrentSession(msgs =>
+        msgs.map(msg => msg.id === assistantMessage.id ? { ...msg, content: assistantContent, isLoading: false } : msg)
+      )
+    } catch (error: any) {
+      console.error('Enrichment error:', error)
+      const errorMsg = error.friendlyMessage
+        || error.response?.data?.detail
+        || '富集分析失败，请重试'
+      // 失败时显示错误信息和重试按钮
+      updateCurrentSession(msgs =>
+        msgs.map(msg => msg.id === assistantMessage.id
+          ? { ...msg, content: errorMsg, isLoading: false, type: 'enrichment-retry' as const, analysisResult }
+          : msg)
+      )
+    }
     setLoading(false)
   }
 
   // 跳过富集分析提示
   const handleSkipEnrichment = () => {
-    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt'))
+    updateCurrentSession(msgs => msgs.filter(msg => msg.type !== 'enrichment-prompt' && msg.type !== 'enrichment-retry'))
   }
 
   // 确认富集分析（从文件）
@@ -1380,6 +1410,47 @@ export default function ChatPage() {
               onClick={handleSkipEnrichment}
             >
               跳过
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    // 富集分析失败重试卡片
+    if (msg.type === 'enrichment-retry' && msg.analysisResult) {
+      return (
+        <div style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          minWidth: 360,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 18 }}>&#x26A0;&#xFE0F;</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-primary)' }}>
+              富集分析失败
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            {msg.content || '分析过程中出现错误'}，您可以重新尝试。
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              type="primary"
+              size="small"
+              style={{ borderRadius: 8, background: 'var(--gradient-accent)', border: 'none' }}
+              onClick={() => handleEnrichmentFromResult(msg.analysisResult!)}
+            >
+              重新分析
+            </Button>
+            <Button
+              type="text"
+              size="small"
+              style={{ color: 'var(--color-text-muted)' }}
+              onClick={handleSkipEnrichment}
+            >
+              取消
             </Button>
           </div>
         </div>

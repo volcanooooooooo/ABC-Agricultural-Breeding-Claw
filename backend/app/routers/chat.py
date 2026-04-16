@@ -134,6 +134,7 @@ def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
             return assistant_msg.content or ""
 
         # 执行所有工具调用
+        _pending_data: Dict[str, str] = {}  # marker_comment -> json_str
         for tool_call in assistant_msg.tool_calls:
             name = tool_call.function.name
             try:
@@ -141,11 +142,56 @@ def _agent_loop(messages: List[Dict[str, Any]], max_rounds: int = 10) -> str:
             except json.JSONDecodeError:
                 arguments = {}
             result = _dispatch_tool(name, arguments)
+            # 对富集/BLAST 结果，后端直接持有 JSON，不让 LLM 重新输出
+            if name == "enrichment_analysis":
+                try:
+                    parsed = json.loads(result)
+                    if "error" not in parsed:
+                        _pending_data["ENRICHMENT"] = result
+                        result = json.dumps({
+                            "summary": parsed.get("summary", {}),
+                            "note": "完整数据已由系统附加，请勿在回复中重复输出 JSON",
+                        }, ensure_ascii=False)
+                except Exception:
+                    pass
+            elif name == "blast_search":
+                try:
+                    parsed = json.loads(result)
+                    if "error" not in parsed:
+                        _pending_data["BLAST"] = result
+                        result = json.dumps({
+                            "summary": parsed.get("summary", parsed.get("hits", [])[:3]),
+                            "note": "完整数据已由系统附加，请勿在回复中重复输出 JSON",
+                        }, ensure_ascii=False)
+                except Exception:
+                    pass
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "content": result,
             })
+
+        # 如果有需要后端附加的数据，继续循环拿到 LLM 摘要后再拼接
+        if _pending_data:
+            # 再跑一轮拿摘要文本
+            response2 = client.chat.completions.create(
+                model=settings.qwen_model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="none",
+                max_tokens=512,
+                temperature=settings.llm_temperature,
+            )
+            summary_text = (response2.choices[0].message.content or "").strip()
+            # 去掉 LLM 可能自己输出的残缺标记
+            for marker in ("<!-- ENRICHMENT_DATA:", "<!-- BLAST_DATA:", "-->"):
+                summary_text = summary_text.split(marker)[0].strip()
+            # 拼接后端持有的完整 JSON
+            if "ENRICHMENT" in _pending_data:
+                summary_text += f"\n<!-- ENRICHMENT_DATA: {_pending_data['ENRICHMENT']} -->"
+            if "BLAST" in _pending_data:
+                summary_text += f"\n<!-- BLAST_DATA: {_pending_data['BLAST']} -->"
+            return summary_text
 
     # 超过最大轮数
     for msg in reversed(messages):

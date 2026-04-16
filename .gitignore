@@ -13,9 +13,10 @@ node_modules/
 dist/
 build/
 
-# IDE
+# IDE / Tools
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 
@@ -30,31 +31,36 @@ worktrees/
 # Environment
 .env
 .env.local
+.env.*
 
-# Local backend runtime data
+# Tests
+backend/tests/
+test_*.py
+*.test.py
+*.spec.py
+
+# Runtime / generated data
 backend/backend/
 backend/data/*.db
-backend/data/breeding.db
+backend/data/config.json
 
-# Large data files (>100MB)
-backend/data/annotations/MH63RS3.gff3
+# Logs
+logs/
+
+# Large annotation files (download separately)
+backend/data/annotations/*.obo
+backend/data/annotations/*.tsv
+backend/data/annotations/*.gff3
+backend/data/annotations/*.gff3.gz
+backend/data/annotations/*.list
 
 # BLAST database files (large, generated locally)
-backend/data/blastdb/MH63/*.fasta
-backend/data/blastdb/MH63/*.fasta.gz
-backend/data/blastdb/MH63/*.fa
-backend/data/blastdb/MH63/*.nsq
-backend/data/blastdb/MH63/*.nhr
-backend/data/blastdb/MH63/*.nin
-backend/data/blastdb/MH63/*.nsd
-backend/data/blastdb/MH63/*.nsi
-backend/data/blastdb/MH63/*.nog
-backend/data/blastdb/MH63_pep/*.fa
-backend/data/blastdb/MH63_pep/*.psq
-backend/data/blastdb/MH63_pep/*.phr
-backend/data/blastdb/MH63_pep/*.pin
-backend/data/blastdb/MH63_pep/*.psd
-backend/data/blastdb/MH63_pep/*.psi
-backend/data/blastdb/MH63_pep/*.pog
-backend/data/blastdb/MH63RS3.gff3.gz
-backend/data/blastdb/extract_sequences.py
+backend/data/blastdb/
+!backend/data/blastdb/**/.gitkeep
+
+# Uploads (user-generated, not tracked)
+backend/data/uploads/
+!backend/data/uploads/.gitkeep
+
+# Local reference docs
+ref_*.md
